@@ -116,6 +116,19 @@ function isXHSTab(url) {
 }
 
 /**
+ * Decide whether the side panel should be enabled for a given tab URL.
+ * Returns: true (enable), false (disable), or null (skip — don't change state).
+ *
+ * We skip internal browser URLs and unknown/empty URLs to avoid
+ * accidentally disabling the panel on tabs we can't inspect.
+ */
+function shouldEnablePanel(url) {
+  if (!url) return null;
+  if (url.startsWith('chrome://') || url.startsWith('chrome-extension://')) return null;
+  return isXHSTab(url);
+}
+
+/**
  * Count comment elements currently in the DOM.
  * Returns the first non-zero count across known selectors.
  */
@@ -168,6 +181,7 @@ if (typeof module !== 'undefined' && module.exports) {
     generateCSV,
     detectPageType,
     isXHSTab,
+    shouldEnablePanel,
     countCommentElements,
     findScrollableContainer,
   };

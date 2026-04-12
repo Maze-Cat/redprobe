@@ -6,6 +6,7 @@ const {
   generateCSV,
   detectPageType,
   isXHSTab,
+  shouldEnablePanel,
   countCommentElements,
   findScrollableContainer,
 } = require('../src/lib/utils');
@@ -353,6 +354,40 @@ describe('isXHSTab', () => {
 
   test('returns false for empty string', () => {
     expect(isXHSTab('')).toBe(false);
+  });
+});
+
+// ============================================================
+// shouldEnablePanel
+// ============================================================
+
+describe('shouldEnablePanel', () => {
+  test('returns true for XHS URLs (should enable panel)', () => {
+    expect(shouldEnablePanel('https://www.xiaohongshu.com/explore/abc')).toBe(true);
+    expect(shouldEnablePanel('https://www.xiaohongshu.com/search_result?q=test')).toBe(true);
+    expect(shouldEnablePanel('https://www.xiaohongshu.com/')).toBe(true);
+  });
+
+  test('returns false for non-XHS URLs (should disable panel)', () => {
+    expect(shouldEnablePanel('https://www.google.com')).toBe(false);
+    expect(shouldEnablePanel('https://github.com/foo')).toBe(false);
+    expect(shouldEnablePanel('https://example.com')).toBe(false);
+  });
+
+  test('returns null for empty/null/undefined URL (skip — do not change state)', () => {
+    expect(shouldEnablePanel(null)).toBeNull();
+    expect(shouldEnablePanel(undefined)).toBeNull();
+    expect(shouldEnablePanel('')).toBeNull();
+  });
+
+  test('returns null for chrome:// URLs (skip — internal browser pages)', () => {
+    expect(shouldEnablePanel('chrome://extensions/')).toBeNull();
+    expect(shouldEnablePanel('chrome://settings')).toBeNull();
+    expect(shouldEnablePanel('chrome://newtab')).toBeNull();
+  });
+
+  test('returns null for chrome-extension:// URLs (skip)', () => {
+    expect(shouldEnablePanel('chrome-extension://abc123/popup.html')).toBeNull();
   });
 });
 
