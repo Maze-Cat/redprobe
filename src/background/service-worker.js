@@ -3,10 +3,20 @@
 // ============================================================
 
 // ---- Side panel ----
-// Open side panel when the user clicks the extension icon.
-// setPanelBehavior lets Chrome handle the click → open directly,
-// avoiding async "user gesture" issues with sidePanel.open().
+// Chrome opens the panel automatically on action click.
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+
+// When a page finishes loading, enable panel only on XHS tabs.
+// We intentionally avoid onActivated — its async tabs.get() races
+// with click events and causes "panel not enabled" failures.
+chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
+  if (info.status !== 'complete' || !tab.url) return;
+  if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) return;
+  chrome.sidePanel.setOptions({
+    tabId,
+    enabled: tab.url.includes('xiaohongshu.com')
+  });
+});
 
 // ============================================================
 // Message Router
