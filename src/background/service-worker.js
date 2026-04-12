@@ -2,40 +2,11 @@
 // 红探 RedProbe — Background Service Worker
 // ============================================================
 
-// ---- Side panel: auto-open on action click, per-tab enable/disable ----
-
-// Let Chrome handle opening the panel when the user clicks the action icon.
-// No sidePanel.open() needed — avoids "user gesture" async context issues.
+// ---- Side panel ----
+// Open side panel when the user clicks the extension icon.
+// setPanelBehavior lets Chrome handle the click → open directly,
+// avoiding async "user gesture" issues with sidePanel.open().
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
-
-// Ensure panel is enabled globally by default. Per-tab setOptions calls
-// below will selectively disable it on non-XHS tabs. Without this,
-// stale per-tab state from a previous SW lifecycle can block the panel.
-chrome.sidePanel.setOptions({ enabled: true });
-
-function isXHSTab(url) {
-  return !!url?.includes('xiaohongshu.com');
-}
-
-// Enable panel only on XHS tabs; disable on others.
-// Skip unknown/internal URLs to avoid accidentally disabling the panel.
-function syncPanelForTab(tabId, url) {
-  if (!url || url.startsWith('chrome://') || url.startsWith('chrome-extension://')) return;
-  chrome.sidePanel.setOptions({ tabId, enabled: isXHSTab(url) });
-}
-
-// When switching tabs, sync panel state
-chrome.tabs.onActivated.addListener(async ({ tabId }) => {
-  const tab = await chrome.tabs.get(tabId).catch(() => null);
-  if (tab) syncPanelForTab(tab.id, tab.url);
-});
-
-// When a tab finishes loading, sync panel state
-chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
-  if (info.status === 'complete') {
-    syncPanelForTab(tabId, tab.url);
-  }
-});
 
 // ============================================================
 // Message Router
