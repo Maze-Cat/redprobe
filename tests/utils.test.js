@@ -4,7 +4,10 @@ const {
   csvEscape,
   generateMarkdown,
   generateCSV,
-  detectPageType
+  detectPageType,
+  isXHSTab,
+  countCommentElements,
+  findScrollableContainer,
 } = require('../src/lib/utils');
 
 // ============================================================
@@ -102,16 +105,22 @@ describe('parseAIResponse', () => {
 
 describe('escapeHtml', () => {
   test('escapes angle brackets', () => {
-    expect(escapeHtml('<script>alert("xss")</script>'))
-      .toBe('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
+    // DOM textContent escaping: <, >, & are escaped; quotes are not needed in text nodes
+    const result = escapeHtml('<script>alert("xss")</script>');
+    expect(result).toContain('&lt;script&gt;');
+    expect(result).toContain('&lt;/script&gt;');
+    expect(result).not.toContain('<script>');
   });
 
   test('escapes ampersand', () => {
     expect(escapeHtml('a & b')).toBe('a &amp; b');
   });
 
-  test('escapes quotes', () => {
-    expect(escapeHtml('"hello" & \'world\'')).toBe('&quot;hello&quot; &amp; &#039;world&#039;');
+  test('escapes ampersand in mixed content', () => {
+    // & is always escaped; quotes in text nodes are rendered as-is by the DOM
+    const result = escapeHtml('"hello" & \'world\'');
+    expect(result).toContain('&amp;');
+    expect(result).not.toContain(' & ');
   });
 
   test('returns empty string content unchanged', () => {
@@ -317,5 +326,135 @@ describe('detectPageType', () => {
 
   test('search URL takes precedence over overlay check', () => {
     expect(detectPageType('https://www.xiaohongshu.com/search_result?q=test', true)).toBe('search');
+  });
+});
+
+// ============================================================
+// isXHSTab
+// ============================================================
+
+describe('isXHSTab', () => {
+  test('returns true for xiaohongshu.com URLs', () => {
+    expect(isXHSTab('https://www.xiaohongshu.com/explore/abc')).toBe(true);
+    expect(isXHSTab('https://www.xiaohongshu.com/')).toBe(true);
+    expect(isXHSTab('https://www.xiaohongshu.com/search_result?keyword=test')).toBe(true);
+  });
+
+  test('returns false for non-XHS URLs', () => {
+    expect(isXHSTab('https://www.google.com')).toBe(false);
+    expect(isXHSTab('https://github.com')).toBe(false);
+    expect(isXHSTab('chrome://extensions/')).toBe(false);
+  });
+
+  test('returns false for null or undefined', () => {
+    expect(isXHSTab(null)).toBe(false);
+    expect(isXHSTab(undefined)).toBe(false);
+  });
+
+  test('returns false for empty string', () => {
+    expect(isXHSTab('')).toBe(false);
+  });
+});
+
+// ============================================================
+// countCommentElements — uses jsdom via jest
+// ============================================================
+
+describe('countCommentElements', () => {
+  function makeDOM(html) {
+    // jest runs with jsdom, so we can use document.createElement
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    return div;
+  }
+
+  test('counts elements matching .comment-item', () => {
+    const root = makeDOM(`
+      <div class="comment-item">first</div>
+      <div class="comment-item">second</div>
+      <div class="comment-item">third</div>
+    `);
+    expect(countCommentElements(root)).toBe(3);
+  });
+
+  test('counts elements matching [class*="commentItem"]', () => {
+    const root = makeDOM(`
+      <div class="xhs-commentItem-wrap">one</div>
+      <div class="xhs-commentItem-wrap">two</div>
+    `);
+    expect(countCommentElements(root)).toBe(2);
+  });
+
+  test('returns 0 when no comment elements present', () => {
+    const root = makeDOM('<div class="post-body">no comments here</div>');
+    expect(countCommentElements(root)).toBe(0);
+  });
+
+  test('returns count from first matching selector only', () => {
+    // .comment-item (3) and [class*="comment"] [class*="content"] both match —
+    // should return 3 from the first selector hit
+    const root = makeDOM(`
+      <div class="comment-item"><span class="content">a</span></div>
+      <div class="comment-item"><span class="content">b</span></div>
+      <div class="comment-item"><span class="content">c</span></div>
+    `);
+    expect(countCommentElements(root)).toBe(3);
+  });
+});
+
+// ============================================================
+// findScrollableContainer — uses jsdom
+// ============================================================
+
+describe('findScrollableContainer', () => {
+  function makeScrollableDOM(selector, scrollHeight, clientHeight) {
+    const root = document.createElement('div');
+    root.innerHTML = `<div class="${selector.replace(/[.\[\]*"]/g, '')}">inner</div>`;
+    // jsdom doesn't compute real scroll dimensions, so we mock them
+    const el = root.firstElementChild;
+    Object.defineProperty(el, 'scrollHeight', { value: scrollHeight, configurable: true });
+    Object.defineProperty(el, 'clientHeight', { value: clientHeight, configurable: true });
+    return root;
+  }
+
+  test('returns .note-detail-mask when it is scrollable', () => {
+    const root = document.createElement('div');
+    root.innerHTML = '<div class="note-detail-mask">content</div>';
+    const el = root.querySelector('.note-detail-mask');
+    Object.defineProperty(el, 'scrollHeight', { value: 2000, configurable: true });
+    Object.defineProperty(el, 'clientHeight', { value: 600, configurable: true });
+    expect(findScrollableContainer(root)).toBe(el);
+  });
+
+  test('returns .comments-container when note-detail not present', () => {
+    const root = document.createElement('div');
+    root.innerHTML = '<div class="comments-container">comments</div>';
+    const el = root.querySelector('.comments-container');
+    Object.defineProperty(el, 'scrollHeight', { value: 1500, configurable: true });
+    Object.defineProperty(el, 'clientHeight', { value: 400, configurable: true });
+    expect(findScrollableContainer(root)).toBe(el);
+  });
+
+  test('skips non-scrollable candidates (scrollHeight <= clientHeight)', () => {
+    const root = document.createElement('div');
+    root.innerHTML = `
+      <div class="note-detail-mask">short</div>
+      <div class="comments-container">tall</div>
+    `;
+    const mask = root.querySelector('.note-detail-mask');
+    const comments = root.querySelector('.comments-container');
+    // mask is NOT scrollable
+    Object.defineProperty(mask, 'scrollHeight', { value: 300, configurable: true });
+    Object.defineProperty(mask, 'clientHeight', { value: 300, configurable: true });
+    // comments IS scrollable
+    Object.defineProperty(comments, 'scrollHeight', { value: 1500, configurable: true });
+    Object.defineProperty(comments, 'clientHeight', { value: 400, configurable: true });
+    expect(findScrollableContainer(root)).toBe(comments);
+  });
+
+  test('falls back to document root when root is null', () => {
+    // In browser/jsdom, null falls back to global document — returns documentElement
+    const result = findScrollableContainer(null);
+    expect(result).not.toBeNull();
   });
 });

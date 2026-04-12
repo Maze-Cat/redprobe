@@ -108,6 +108,56 @@ function detectPageType(url, hasNoteOverlay) {
   return 'unknown';
 }
 
+/**
+ * Whether a URL belongs to Xiaohongshu.
+ */
+function isXHSTab(url) {
+  return !!url?.includes('xiaohongshu.com');
+}
+
+/**
+ * Count comment elements currently in the DOM.
+ * Returns the first non-zero count across known selectors.
+ */
+function countCommentElements(root) {
+  root = root || (typeof document !== 'undefined' ? document : null);
+  if (!root) return 0;
+  const selectors = [
+    '.comment-item',
+    '[class*="commentItem"]',
+    '[class*="comment-item"]',
+    '[class*="comment"] [class*="content"]',
+  ];
+  for (const sel of selectors) {
+    const count = root.querySelectorAll(sel).length;
+    if (count > 0) return count;
+  }
+  return 0;
+}
+
+/**
+ * Find the scrollable container that holds the note + comments.
+ * Returns the first element whose scrollHeight exceeds clientHeight,
+ * falling back to document.scrollingElement.
+ */
+function findScrollableContainer(root) {
+  root = root || (typeof document !== 'undefined' ? document : null);
+  if (!root) return null;
+  const candidates = [
+    '.note-detail-mask',
+    '.note-detail-modal',
+    '[class*="note-detail"]',
+    '.comments-container',
+    '.comment-list',
+    '[class*="comments"]',
+  ];
+  for (const sel of candidates) {
+    const el = root.querySelector(sel);
+    if (el && el.scrollHeight > el.clientHeight) return el;
+  }
+  return root.scrollingElement || root.documentElement || null;
+}
+
 // Export for testing (no-op in browser context)
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -116,6 +166,9 @@ if (typeof module !== 'undefined' && module.exports) {
     csvEscape,
     generateMarkdown,
     generateCSV,
-    detectPageType
+    detectPageType,
+    isXHSTab,
+    countCommentElements,
+    findScrollableContainer,
   };
 }
