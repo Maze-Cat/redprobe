@@ -2,13 +2,34 @@
 // 红探 RedProbe — Background Service Worker
 // ============================================================
 
+// ---- Tab-level side panel binding ----
+
+function isXHSTab(url) {
+  return !!url?.includes('xiaohongshu.com');
+}
+
+// Enable/disable panel per tab based on URL
+function syncPanelForTab(tabId, url) {
+  chrome.sidePanel.setOptions({ tabId, enabled: isXHSTab(url) });
+}
+
 // Open side panel when extension icon is clicked (only on XHS pages)
 chrome.action.onClicked.addListener(async (tab) => {
-  if (!tab.url?.includes('xiaohongshu.com')) {
-    // Not on XHS — can't do anything useful
-    return;
-  }
+  if (!isXHSTab(tab.url)) return;
   await chrome.sidePanel.open({ tabId: tab.id });
+});
+
+// Close panel when switching to a non-XHS tab
+chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  if (tab) syncPanelForTab(tab.id, tab.url);
+});
+
+// Close panel when a tab navigates away from XHS
+chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
+  if (info.status === 'complete') {
+    syncPanelForTab(tabId, tab.url);
+  }
 });
 
 // ============================================================

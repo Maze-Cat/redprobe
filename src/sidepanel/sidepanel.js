@@ -105,7 +105,9 @@
     // Show loading
     showSection(loadingSection);
     loadingText.textContent = '正在提取页面内容...';
-    loadingSub.textContent = '自动加载评论中，请稍候';
+    loadingSub.textContent = type === 'search'
+      ? '自动滚动加载更多结果，请稍候'
+      : '自动加载评论中，请稍候';
 
     try {
       // Step 1: Extract content from page

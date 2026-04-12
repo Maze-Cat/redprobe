@@ -201,7 +201,8 @@
   // ---- Auto-scroll to load more comments ----
   function countCommentElements() {
     const selectors = [
-      '.comment-item', '[class*="commentItem"]', '[class*="comment"] [class*="content"]'
+      '.comment-item', '[class*="commentItem"]', '[class*="comment-item"]',
+      '[class*="comment"] [class*="content"]'
     ];
     for (const sel of selectors) {
       const count = document.querySelectorAll(sel).length;
@@ -210,32 +211,47 @@
     return 0;
   }
 
-  async function loadMoreComments(maxScrolls = 15) {
-    const commentSection = document.querySelector(
-      '.comments-container, .comment-list, [class*="comments"]'
-    );
-    if (!commentSection) return;
+  // Find the scrollable container that holds the note + comments.
+  // XHS renders notes inside an overlay/modal; the scroll is on that
+  // container, not on the comments sub-section itself.
+  function findScrollableContainer() {
+    const candidates = [
+      '.note-detail-mask',
+      '.note-detail-modal',
+      '[class*="note-detail"]',
+      '.comments-container',
+      '.comment-list',
+      '[class*="comments"]',
+    ];
+    for (const sel of candidates) {
+      const el = document.querySelector(sel);
+      if (el && el.scrollHeight > el.clientHeight) return el;
+    }
+    // Fall back to the document scroll
+    return document.scrollingElement || document.documentElement;
+  }
+
+  async function loadMoreComments(maxScrolls = 20) {
+    const container = findScrollableContainer();
 
     let scrollCount = 0;
     let stableRounds = 0;
     let lastCount = countCommentElements();
 
     while (scrollCount < maxScrolls && stableRounds < 3) {
-      // Click "展开更多" buttons
-      const expandBtns = document.querySelectorAll(
-        '[class*="expand"], [class*="more-reply"], [class*="showMore"]'
-      );
-      expandBtns.forEach(btn => {
-        if (btn.textContent.includes('展开') || btn.textContent.includes('更多')) {
-          btn.click();
-        }
+      // Click "展开更多" / "展开回复" buttons
+      document.querySelectorAll(
+        '[class*="expand"], [class*="more-reply"], [class*="showMore"], [class*="expandBtn"]'
+      ).forEach(btn => {
+        if (/展开|更多|查看/.test(btn.textContent)) btn.click();
       });
 
-      // Scroll comment section
-      commentSection.scrollTop = commentSection.scrollHeight;
-      window.scrollBy(0, 500);
+      // Scroll the note container (carries both content and comments on XHS)
+      container.scrollTop = container.scrollHeight;
+      // Also nudge window scroll as fallback for full-page layouts
+      window.scrollBy(0, 600);
 
-      await new Promise(r => setTimeout(r, 800));
+      await new Promise(r => setTimeout(r, 1000));
       scrollCount++;
 
       const newCount = countCommentElements();
@@ -247,8 +263,31 @@
       lastCount = newCount;
     }
 
-    // Scroll back up
+    // Scroll back to top
+    container.scrollTop = 0;
     window.scrollTo(0, 0);
+  }
+
+  // ---- Scroll search results page to load more cards ----
+  async function loadMoreSearchCards(maxScrolls = 8) {
+    let lastCount = document.querySelectorAll(
+      '.note-item, [class*="note-item"], [class*="noteItem"]'
+    ).length;
+    let stableRounds = 0;
+
+    for (let i = 0; i < maxScrolls && stableRounds < 2; i++) {
+      window.scrollBy(0, window.innerHeight);
+      await new Promise(r => setTimeout(r, 900));
+
+      const newCount = document.querySelectorAll(
+        '.note-item, [class*="note-item"], [class*="noteItem"]'
+      ).length;
+      stableRounds = newCount === lastCount ? stableRounds + 1 : 0;
+      lastCount = newCount;
+    }
+
+    window.scrollTo(0, 0);
+    await new Promise(r => setTimeout(r, 300));
   }
 
   // ---- Message Handler ----
@@ -270,13 +309,16 @@
       }
 
       if (pageType === 'search') {
-        const data = extractSearchResults();
-        sendResponse({
-          pageType: 'search',
-          data,
-          url: window.location.href
+        // Scroll to load more cards before extracting
+        loadMoreSearchCards(6).then(() => {
+          const data = extractSearchResults();
+          sendResponse({
+            pageType: 'search',
+            data,
+            url: window.location.href
+          });
         });
-        return false;
+        return true; // async
       }
 
       sendResponse({
