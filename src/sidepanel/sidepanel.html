@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>红探 RedProbe</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <span class="logo-icon">🔴</span>
+        <span class="logo-text">红探</span>
+        <span class="logo-sub">RedProbe</span>
+      </div>
+      <button class="settings-btn" id="settingsBtn" title="设置">⚙️</button>
+    </header>
+
+    <!-- Settings Panel (hidden by default) -->
+    <div class="settings-panel" id="settingsPanel" style="display:none;">
+      <h3>API 设置</h3>
+      <p class="settings-hint">请输入你的 Anthropic API Key（数据仅存储在本地）</p>
+      <input type="password" id="apiKeyInput" placeholder="sk-ant-..." class="api-input" />
+      <div class="settings-actions">
+        <button id="saveKeyBtn" class="btn btn-primary">保存</button>
+        <button id="cancelSettingsBtn" class="btn btn-ghost">取消</button>
+      </div>
+      <div id="keyStatus" class="key-status"></div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="main">
+      <!-- Action Buttons -->
+      <div class="actions" id="actionsSection">
+        <button class="action-btn action-post" id="analyzePostBtn">
+          <span class="action-icon">📝</span>
+          <div>
+            <div class="action-title">分析当前帖子</div>
+            <div class="action-desc">提取评论痛点</div>
+          </div>
+        </button>
+        <button class="action-btn action-search" id="analyzeSearchBtn">
+          <span class="action-icon">🔍</span>
+          <div>
+            <div class="action-title">分析搜索结果</div>
+            <div class="action-desc">跨帖子聚合分析</div>
+          </div>
+        </button>
+      </div>
+
+      <!-- Loading State -->
+      <div class="loading" id="loadingSection" style="display:none;">
+        <div class="loading-spinner"></div>
+        <p class="loading-text" id="loadingText">正在提取页面内容...</p>
+        <p class="loading-sub" id="loadingSub">请稍候，AI正在分析中</p>
+      </div>
+
+      <!-- Error State -->
+      <div class="error-state" id="errorSection" style="display:none;">
+        <div class="error-icon">⚠️</div>
+        <p class="error-msg" id="errorMsg"></p>
+        <button class="btn btn-ghost" id="retryBtn">重试</button>
+      </div>
+
+      <!-- Results -->
+      <div class="results" id="resultsSection" style="display:none;">
+        <!-- Summary Card -->
+        <div class="summary-card" id="summaryCard"></div>
+
+        <!-- Pain Points List -->
+        <div class="pain-points" id="painPointsList"></div>
+
+        <!-- Themes (search only) -->
+        <div class="themes" id="themesList" style="display:none;"></div>
+
+        <!-- Export Actions -->
+        <div class="export-bar">
+          <button class="btn btn-sm" id="copyMdBtn">📋 复制 Markdown</button>
+          <button class="btn btn-sm" id="downloadCsvBtn">📊 下载 CSV</button>
+          <button class="btn btn-sm" id="copyJsonBtn">{ } 复制 JSON</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <span>红探 v1.0 · 痛点挖掘利器</span>
+    </footer>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

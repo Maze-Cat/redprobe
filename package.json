@@ -1,0 +1,15 @@
+{
+  "name": "redprobe",
+  "version": "1.0.0",
+  "description": "一键分析小红书帖子评论，AI 自动提取用户痛点，帮你发现产品机会。",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "jest": "^30.3.0"
+  }
+}
