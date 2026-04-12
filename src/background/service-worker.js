@@ -19,6 +19,9 @@ function syncPanelForTab(tabId, url) {
 // Open side panel when extension icon is clicked (only on XHS pages)
 chrome.action.onClicked.addListener(async (tab) => {
   if (!isXHSTab(tab.url)) return;
+  // Always enable before opening — service worker may have been inactive
+  // since the last syncPanelForTab call, leaving the panel in an unknown state.
+  await chrome.sidePanel.setOptions({ tabId: tab.id, enabled: true });
   await chrome.sidePanel.open({ tabId: tab.id });
 });
 
