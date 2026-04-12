@@ -5,6 +5,7 @@
   "description": "一键分析小红书帖子评论，AI自动提取用户痛点，帮你发现产品机会。",
   "permissions": [
     "activeTab",
+    "tabs",
     "sidePanel",
     "storage"
   ],

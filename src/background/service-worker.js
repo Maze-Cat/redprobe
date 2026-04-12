@@ -8,8 +8,11 @@ function isXHSTab(url) {
   return !!url?.includes('xiaohongshu.com');
 }
 
-// Enable/disable panel per tab based on URL
+// Enable/disable panel per tab based on URL.
+// Skip if URL is unknown (no tabs permission yet, or internal chrome:// page)
+// to avoid accidentally disabling the panel on XHS tabs.
 function syncPanelForTab(tabId, url) {
+  if (!url || url.startsWith('chrome://') || url.startsWith('chrome-extension://')) return;
   chrome.sidePanel.setOptions({ tabId, enabled: isXHSTab(url) });
 }
 
