@@ -6,16 +6,25 @@
 // Chrome opens the panel automatically on action click.
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 
-// When a page finishes loading, enable panel only on XHS tabs.
-// We intentionally avoid onActivated — its async tabs.get() races
-// with click events and causes "panel not enabled" failures.
+// Enable panel only on XHS tabs, disable on everything else.
+// Only skip when URL is unknown (null/undefined/empty) to avoid
+// accidentally disabling a tab we can't inspect.
+function syncPanelForTab(tabId, url) {
+  if (!url) return;
+  chrome.sidePanel.setOptions({ tabId, enabled: url.includes('xiaohongshu.com') });
+}
+
+// When switching tabs, sync panel state
+chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  if (tab) syncPanelForTab(tab.id, tab.url);
+});
+
+// When a page finishes loading, sync panel state
 chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
-  if (info.status !== 'complete' || !tab.url) return;
-  if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) return;
-  chrome.sidePanel.setOptions({
-    tabId,
-    enabled: tab.url.includes('xiaohongshu.com')
-  });
+  if (info.status === 'complete') {
+    syncPanelForTab(tabId, tab.url);
+  }
 });
 
 // ============================================================
