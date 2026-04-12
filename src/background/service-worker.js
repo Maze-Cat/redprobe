@@ -8,6 +8,11 @@
 // No sidePanel.open() needed — avoids "user gesture" async context issues.
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 
+// Ensure panel is enabled globally by default. Per-tab setOptions calls
+// below will selectively disable it on non-XHS tabs. Without this,
+// stale per-tab state from a previous SW lifecycle can block the panel.
+chrome.sidePanel.setOptions({ enabled: true });
+
 function isXHSTab(url) {
   return !!url?.includes('xiaohongshu.com');
 }
