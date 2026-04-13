@@ -6,6 +6,10 @@
 // Chrome opens the panel automatically on action click.
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 
+// Global default: panel enabled everywhere (per-tab overrides below).
+// This prevents stale per-tab disabled state from blocking the panel.
+chrome.sidePanel.setOptions({ enabled: true });
+
 // When a page finishes loading, enable panel only on XHS tabs.
 // We intentionally avoid onActivated — its async tabs.get() races
 // with click events and causes "panel not enabled" failures.
@@ -17,6 +21,25 @@ chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
     enabled: tab.url.includes('xiaohongshu.com')
   });
 });
+
+// ============================================================
+// Content Script Injection Helper
+// ============================================================
+// After extension reload, already-open tabs lose their content scripts.
+// This function ensures the content script is injected before messaging.
+async function ensureContentScript(tabId) {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: 'PING' });
+  } catch {
+    // Content script not loaded — inject it
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['src/content/extractor.js']
+    });
+    // Give script a moment to initialise
+    await new Promise(r => setTimeout(r, 100));
+  }
+}
 
 // ============================================================
 // Message Router
@@ -38,20 +61,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'EXTRACT_CONTENT') {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]) {
-        chrome.tabs.sendMessage(tabs[0].id, { type: 'EXTRACT' }, sendResponse);
+    (async () => {
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab) { sendResponse({ pageType: 'unknown', error: '未找到活动标签页' }); return; }
+        await ensureContentScript(tab.id);
+        chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT' }, sendResponse);
+      } catch (err) {
+        sendResponse({ pageType: 'unknown', error: '无法连接到页面，请刷新小红书页面后重试' });
       }
-    });
+    })();
     return true;
   }
 
   if (message.type === 'EXTRACT_COMPETITIVE_CONTENT') {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]) {
-        chrome.tabs.sendMessage(tabs[0].id, { type: 'EXTRACT_COMPETITIVE' }, sendResponse);
+    (async () => {
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab) { sendResponse({ pageType: 'unknown', error: '未找到活动标签页' }); return; }
+        await ensureContentScript(tab.id);
+        chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_COMPETITIVE' }, sendResponse);
+      } catch (err) {
+        sendResponse({ pageType: 'unknown', error: '无法连接到页面，请刷新小红书页面后重试' });
       }
-    });
+    })();
     return true;
   }
 });

@@ -373,6 +373,12 @@
 
   // ---- Message Handler ----
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    // Health-check used by service worker to detect if content script is alive
+    if (message.type === 'PING') {
+      sendResponse({ pong: true });
+      return false;
+    }
+
     if (message.type === 'EXTRACT') {
       const pageType = detectPageType();
 
