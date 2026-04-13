@@ -205,7 +205,7 @@ function generateCompetitiveMarkdown(data) {
   const post = data.post || {};
 
   let md = `# 红探 AI 生成帖子\n\n`;
-  md += `> 基于 ${data.sources_count || '?'} 篇千赞热帖融合创作\n\n`;
+  md += `> 基于 ${data.sources_count || '?'} 篇300赞热帖融合创作\n\n`;
 
   md += `## 标题\n${post.title || '—'}\n\n`;
   md += `## 正文\n${post.body || '—'}\n\n`;

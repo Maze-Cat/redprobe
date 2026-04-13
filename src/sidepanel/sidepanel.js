@@ -111,7 +111,7 @@
     showSection(loadingSection);
     loadingText.textContent = '正在提取页面内容...';
     loadingSub.textContent = type === 'competitive'
-      ? '正在搜索千赞热帖，逐篇提取内容...'
+      ? '正在搜索300赞热帖，逐篇提取内容...'
       : type === 'search'
         ? '自动滚动加载更多结果，请稍候'
         : '自动加载评论中，请稍候';
@@ -350,7 +350,7 @@
       <div class="competitive-summary fade-in">
         <div class="summary-title">⚔️ AI 生成的爆款帖子</div>
         <div class="summary-stats">
-          <span>基于 ${data.sources_count || '?'} 篇千赞热帖融合创作</span>
+          <span>基于 ${data.sources_count || '?'} 篇300赞热帖融合创作</span>
         </div>
         ${data.analysis ? `
           <div class="summary-opportunity fade-in">
@@ -478,7 +478,7 @@
     const post = data.post || {};
 
     let md = `# 红探 AI 生成帖子\n\n`;
-    md += `> 基于 ${data.sources_count || '?'} 篇千赞热帖融合创作\n\n`;
+    md += `> 基于 ${data.sources_count || '?'} 篇300赞热帖融合创作\n\n`;
 
     md += `## 标题\n${post.title || '—'}\n\n`;
     md += `## 正文\n${post.body || '—'}\n\n`;

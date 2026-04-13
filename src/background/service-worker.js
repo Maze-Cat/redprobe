@@ -275,7 +275,7 @@ async function handleAnalyzeSearch(data) {
 
 const COMPETITIVE_SYSTEM_PROMPT = `你是一个顶级小红书博主和内容创作者。
 
-我会给你一组某个关键词下千赞以上的热帖（标题和完整正文）。
+我会给你一组某个关键词下300赞以上的热帖（标题和完整正文）。
 
 你的任务：
 1. 深度分析这些热帖为什么受欢迎（内容角度、结构、表达方式）
@@ -314,7 +314,7 @@ async function handleAnalyzeCompetitive(data) {
       return text;
     }).join('\n\n---\n\n');
 
-    const userContent = `搜索关键词：${data.keyword || '未知'}\n\n以下是该关键词下的 ${data.posts.length} 篇千赞热帖：\n\n${postsText}`;
+    const userContent = `搜索关键词：${data.keyword || '未知'}\n\n以下是该关键词下的 ${data.posts.length} 篇300赞热帖：\n\n${postsText}`;
     const result = await callClaudeAPIStreaming(COMPETITIVE_SYSTEM_PROMPT, userContent);
     return { success: true, data: result, type: 'competitive' };
   } catch (err) {

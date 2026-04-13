@@ -528,7 +528,7 @@
     }
 
     if (message.type === 'EXTRACT_COMPETITIVE') {
-      extractCompetitivePostContents(20, 1000).then(data => {
+      extractCompetitivePostContents(20, 300).then(data => {
         sendResponse({
           pageType: 'search',
           data,
