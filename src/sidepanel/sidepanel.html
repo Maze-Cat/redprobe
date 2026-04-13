@@ -48,6 +48,13 @@
             <div class="action-desc">跨帖子聚合分析</div>
           </div>
         </button>
+        <button class="action-btn action-competitive" id="analyzeCompetitiveBtn">
+          <span class="action-icon">⚔️</span>
+          <div>
+            <div class="action-title">竞品内容分析</div>
+            <div class="action-desc">拆解爆款，生成超越方案</div>
+          </div>
+        </button>
       </div>
 
       <!-- Loading State -->
@@ -74,6 +81,12 @@
 
         <!-- Themes (search only) -->
         <div class="themes" id="themesList" style="display:none;"></div>
+
+        <!-- Competitive Analysis (hidden by default) -->
+        <div id="competitiveSection" style="display:none;">
+          <div id="analysisSection"></div>
+          <div id="battlePlansSection"></div>
+        </div>
 
         <!-- Export Actions -->
         <div class="export-bar">

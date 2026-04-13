@@ -171,6 +171,85 @@ function findScrollableContainer(root) {
   return root.scrollingElement || root.documentElement || null;
 }
 
+/**
+ * Parse XHS engagement count strings like "1.2万", "3456", "999+" into integers.
+ */
+function parseEngagementCount(str) {
+  if (!str) return 0;
+  str = String(str).trim().replace(/\+$/, '');
+  if (!str) return 0;
+  if (str.endsWith('万')) {
+    const num = parseFloat(str.replace('万', ''));
+    return isNaN(num) ? 0 : Math.round(num * 10000);
+  }
+  const num = parseInt(str, 10);
+  return isNaN(num) ? 0 : num;
+}
+
+/**
+ * Sort posts by total engagement (likes + saves + comments) descending.
+ * Does not mutate the original array.
+ */
+function sortByEngagement(posts) {
+  return [...posts].sort((a, b) => {
+    const totalA = (a.likes || 0) + (a.saves || 0) + (a.comments || 0);
+    const totalB = (b.likes || 0) + (b.saves || 0) + (b.comments || 0);
+    return totalB - totalA;
+  });
+}
+
+/**
+ * Generate a Markdown report from competitive analysis data.
+ */
+function generateCompetitiveMarkdown(data) {
+  const s = data.summary || {};
+  const a = data.analysis || {};
+  let md = `# 竞品内容分析报告\n\n`;
+
+  md += `## 概览\n`;
+  md += `- 搜索关键词：${s.keyword || '—'}\n`;
+  md += `- 分析帖子数：${s.posts_analyzed || '?'}\n`;
+  md += `- 最高互动量：${s.top_engagement || '?'}\n`;
+  md += `- 攻击策略：${s.strategy_overview || '—'}\n\n`;
+
+  // Title patterns
+  const tp = a.title_patterns || {};
+  md += `## 标题模式\n`;
+  md += `- 句式结构：${(tp.structures || []).join('、') || '—'}\n`;
+  md += `- 高频关键词：${(tp.keywords || []).join('、') || '—'}\n`;
+  md += `- 钩子类型：${(tp.hooks || []).join('、') || '—'}\n`;
+  md += `- 平均字数：${tp.avg_length || '?'}\n\n`;
+
+  // Copy patterns
+  const cp = a.copy_patterns || {};
+  md += `## 文案模式\n`;
+  md += `- 开头钩子：${(cp.opening_hooks || []).join('、') || '—'}\n`;
+  md += `- 正文结构：${(cp.structures || []).join('、') || '—'}\n`;
+  md += `- CTA 类型：${(cp.cta_types || []).join('、') || '—'}\n`;
+  md += `- 语气：${cp.tone || '—'}\n\n`;
+
+  // Success factors & weaknesses
+  md += `## 成功因素\n`;
+  (a.success_factors || []).forEach(f => { md += `- ${f}\n`; });
+  md += `\n## 竞品弱点\n`;
+  (a.weaknesses || []).forEach(w => { md += `- ${w}\n`; });
+  md += `\n`;
+
+  // Battle plans
+  md += `## 超越方案\n\n`;
+  (data.battle_plans || []).forEach((bp, i) => {
+    md += `### 方案 ${i + 1}：${bp.title}\n`;
+    md += `**文案开头：**\n> ${bp.opening}\n\n`;
+    if (bp.outline?.length) {
+      md += `**大纲：**\n`;
+      bp.outline.forEach(o => { md += `- ${o}\n`; });
+    }
+    md += `**为什么能赢：** ${bp.why_wins}\n\n`;
+  });
+
+  return md;
+}
+
 // Export for testing (no-op in browser context)
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -184,5 +263,8 @@ if (typeof module !== 'undefined' && module.exports) {
     shouldEnablePanel,
     countCommentElements,
     findScrollableContainer,
+    parseEngagementCount,
+    sortByEngagement,
+    generateCompetitiveMarkdown,
   };
 }

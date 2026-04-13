@@ -28,11 +28,15 @@
 
   const analyzePostBtn = $('#analyzePostBtn');
   const analyzeSearchBtn = $('#analyzeSearchBtn');
+  const analyzeCompetitiveBtn = $('#analyzeCompetitiveBtn');
   const retryBtn = $('#retryBtn');
 
   const summaryCard = $('#summaryCard');
   const painPointsList = $('#painPointsList');
   const themesList = $('#themesList');
+  const competitiveSection = $('#competitiveSection');
+  const analysisSection = $('#analysisSection');
+  const battlePlansSection = $('#battlePlansSection');
 
   const copyMdBtn = $('#copyMdBtn');
   const downloadCsvBtn = $('#downloadCsvBtn');
@@ -92,6 +96,7 @@
   // ---- Analysis Flow ----
   analyzePostBtn.addEventListener('click', () => startAnalysis('post'));
   analyzeSearchBtn.addEventListener('click', () => startAnalysis('search'));
+  analyzeCompetitiveBtn.addEventListener('click', () => startAnalysis('competitive'));
   retryBtn.addEventListener('click', () => {
     if (currentType) startAnalysis(currentType);
     else showSection(actionsSection);
@@ -105,14 +110,17 @@
     // Show loading
     showSection(loadingSection);
     loadingText.textContent = '正在提取页面内容...';
-    loadingSub.textContent = type === 'search'
-      ? '自动滚动加载更多结果，请稍候'
-      : '自动加载评论中，请稍候';
+    loadingSub.textContent = type === 'competitive'
+      ? '自动滚动加载爆款帖子，请稍候'
+      : type === 'search'
+        ? '自动滚动加载更多结果，请稍候'
+        : '自动加载评论中，请稍候';
 
     try {
       // Step 1: Extract content from page
+      const extractMsgType = type === 'competitive' ? 'EXTRACT_COMPETITIVE_CONTENT' : 'EXTRACT_CONTENT';
       const extracted = await new Promise((resolve, reject) => {
-        chrome.runtime.sendMessage({ type: 'EXTRACT_CONTENT' }, (response) => {
+        chrome.runtime.sendMessage({ type: extractMsgType }, (response) => {
           if (chrome.runtime.lastError) {
             reject(new Error('无法连接到页面，请刷新小红书页面后重试'));
             return;
@@ -151,8 +159,17 @@
         loadingSub.textContent = 'AI 正在聚合分析痛点全景...';
       }
 
+      if (type === 'competitive') {
+        if (!extracted.data.posts || extracted.data.posts.length === 0) {
+          throw new Error('未找到搜索结果。请在小红书搜索结果页使用此功能。');
+        }
+
+        loadingText.textContent = `已提取 ${extracted.data.posts.length} 篇高互动帖子`;
+        loadingSub.textContent = 'AI 正在拆解竞品，生成超越方案...';
+      }
+
       // Step 2: Send to AI for analysis (with streaming progress)
-      const msgType = type === 'post' ? 'ANALYZE_POST' : 'ANALYZE_SEARCH';
+      const msgType = type === 'post' ? 'ANALYZE_POST' : type === 'competitive' ? 'ANALYZE_COMPETITIVE' : 'ANALYZE_SEARCH';
       const streamListener = (message) => {
         if (message.type === 'STREAM_CHUNK') {
           loadingSub.textContent = `AI 生成中... (${message.textLength} 字符)`;
@@ -195,14 +212,25 @@
 
   // ---- Render Results ----
   function renderResults(data, type) {
+    // Hide all optional sections first
+    painPointsList.style.display = 'none';
+    themesList.style.display = 'none';
+    competitiveSection.style.display = 'none';
+    summaryCard.style.display = 'none';
+
+    if (type === 'competitive') {
+      renderCompetitiveResults(data);
+      return;
+    }
+
+    summaryCard.style.display = '';
+    painPointsList.style.display = '';
     renderSummary(data.summary, type);
     renderPainPoints(data.pain_points || []);
 
     if (type === 'search' && data.themes) {
       renderThemes(data.themes);
       themesList.style.display = '';
-    } else {
-      themesList.style.display = 'none';
     }
   }
 
@@ -298,18 +326,175 @@
     `;
   }
 
+  // ---- Competitive Results Rendering ----
+  function renderCompetitiveResults(data) {
+    competitiveSection.style.display = '';
+
+    // Summary card
+    const summary = data.summary || {};
+    summaryCard.style.display = '';
+    summaryCard.innerHTML = `
+      <div class="competitive-summary fade-in">
+        <div class="summary-title">⚔️ 竞品内容分析报告</div>
+        <div class="summary-stats">
+          <span>关键词：${escapeHtml(summary.keyword || '—')}</span>
+          <span>分析了 ${summary.posts_analyzed || '?'} 篇爆款帖子</span>
+        </div>
+        <div class="summary-opportunity fade-in">
+          <div class="summary-opp-label">🎯 攻击策略</div>
+          ${escapeHtml(summary.strategy_overview || '—')}
+        </div>
+      </div>
+    `;
+
+    // Analysis section
+    renderAnalysis(data.analysis || {});
+
+    // Battle plans
+    renderBattlePlans(data.battle_plans || []);
+  }
+
+  function renderAnalysis(analysis) {
+    const tp = analysis.title_patterns || {};
+    const cp = analysis.copy_patterns || {};
+    const cvp = analysis.cover_patterns || {};
+    const factors = analysis.success_factors || [];
+    const weaknesses = analysis.weaknesses || [];
+
+    analysisSection.innerHTML = `
+      <div class="pattern-card fade-in">
+        <div class="pattern-card-title">📝 标题模式</div>
+        <div class="pattern-section">
+          <div class="pattern-label">高频句式</div>
+          <div class="pattern-tags">
+            ${(tp.structures || []).map(s => `<span class="pattern-tag">${escapeHtml(s)}</span>`).join('')}
+          </div>
+        </div>
+        <div class="pattern-section">
+          <div class="pattern-label">关键词</div>
+          <div class="pattern-tags">
+            ${(tp.keywords || []).map(k => `<span class="pattern-tag">${escapeHtml(k)}</span>`).join('')}
+          </div>
+        </div>
+        <div class="pattern-section">
+          <div class="pattern-label">钩子类型</div>
+          <div class="pattern-tags">
+            ${(tp.hooks || []).map(h => `<span class="pattern-tag">${escapeHtml(h)}</span>`).join('')}
+          </div>
+        </div>
+        ${tp.avg_length ? `<div class="pattern-meta">平均标题长度：${parseInt(tp.avg_length, 10)} 字</div>` : ''}
+      </div>
+
+      <div class="pattern-card fade-in">
+        <div class="pattern-card-title">✍️ 文案模式</div>
+        <div class="pattern-section">
+          <div class="pattern-label">开头钩子</div>
+          <div class="pattern-tags">
+            ${(cp.opening_hooks || []).map(h => `<span class="pattern-tag">${escapeHtml(h)}</span>`).join('')}
+          </div>
+        </div>
+        <div class="pattern-section">
+          <div class="pattern-label">正文结构</div>
+          <div class="pattern-tags">
+            ${(cp.structures || []).map(s => `<span class="pattern-tag">${escapeHtml(s)}</span>`).join('')}
+          </div>
+        </div>
+        <div class="pattern-section">
+          <div class="pattern-label">CTA 类型</div>
+          <div class="pattern-tags">
+            ${(cp.cta_types || []).map(c => `<span class="pattern-tag">${escapeHtml(c)}</span>`).join('')}
+          </div>
+        </div>
+        ${cp.tone ? `<div class="pattern-meta">语气：${escapeHtml(cp.tone)}</div>` : ''}
+      </div>
+
+      <div class="pattern-card fade-in">
+        <div class="pattern-card-title">🎨 封面规律</div>
+        ${cvp.styles ? `
+          <div class="pattern-section">
+            <div class="pattern-label">排版风格</div>
+            <div class="pattern-tags">
+              ${(cvp.styles || []).map(s => `<span class="pattern-tag">${escapeHtml(s)}</span>`).join('')}
+            </div>
+          </div>
+        ` : ''}
+        ${cvp.text_overlay ? `<div class="pattern-meta">文字叠加：${escapeHtml(cvp.text_overlay)}</div>` : ''}
+        ${cvp.colors ? `<div class="pattern-meta">色彩倾向：${escapeHtml(cvp.colors)}</div>` : ''}
+      </div>
+
+      <div class="pattern-card fade-in">
+        <div class="pattern-card-title">✅ 成功因素</div>
+        <div class="pattern-tags">
+          ${factors.map(f => `<span class="pattern-tag">${escapeHtml(f)}</span>`).join('')}
+        </div>
+      </div>
+
+      <div class="pattern-card fade-in">
+        <div class="pattern-card-title">💀 竞品弱点</div>
+        <div class="pattern-tags">
+          ${weaknesses.map(w => `<span class="weakness-tag">${escapeHtml(w)}</span>`).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderBattlePlans(plans) {
+    battlePlansSection.innerHTML = `
+      <div class="pattern-card-title" style="margin-top:16px;">🗡️ 超越方案</div>
+      ${plans.map((plan, i) => `
+        <div class="battle-plan slide-in" style="animation-delay: ${i * 0.1}s">
+          <div class="battle-plan-number">${i + 1}</div>
+          <div class="battle-plan-title">
+            ${escapeHtml(plan.title)}
+            <button class="copy-btn-inline" data-copy="${escapeHtml(plan.title)}" title="复制标题">📋</button>
+          </div>
+          <div class="battle-plan-opening">
+            ${escapeHtml(plan.opening)}
+            <button class="copy-btn-inline" data-copy="${escapeHtml(plan.opening)}" title="复制开头">📋</button>
+          </div>
+          <div class="battle-plan-outline">
+            <div class="pattern-label">内容大纲</div>
+            <ul>
+              ${(plan.outline || []).map(item => `<li>${escapeHtml(item)}</li>`).join('')}
+            </ul>
+          </div>
+          <div class="battle-plan-why">
+            <div class="pattern-label">为什么能赢</div>
+            ${escapeHtml(plan.why_wins)}
+          </div>
+        </div>
+      `).join('')}
+    `;
+
+    // Bind copy buttons
+    battlePlansSection.querySelectorAll('.copy-btn-inline').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        copyToClipboard(btn.dataset.copy);
+        showToast('已复制');
+      });
+    });
+  }
+
   // ---- Export Functions ----
   copyMdBtn.addEventListener('click', () => {
     if (!currentResult) return;
-    const md = generateMarkdown(currentResult, currentType);
+    const md = currentType === 'competitive'
+      ? generateCompetitiveMarkdown(currentResult)
+      : generateMarkdown(currentResult, currentType);
     copyToClipboard(md);
     showToast('已复制 Markdown');
   });
 
   downloadCsvBtn.addEventListener('click', () => {
     if (!currentResult) return;
-    const csv = generateCSV(currentResult);
-    downloadFile(csv, 'redprobe_pain_points.csv', 'text/csv;charset=utf-8');
+    if (currentType === 'competitive') {
+      const csv = generateCompetitiveCSV(currentResult);
+      downloadFile(csv, 'redprobe_competitive.csv', 'text/csv;charset=utf-8');
+    } else {
+      const csv = generateCSV(currentResult);
+      downloadFile(csv, 'redprobe_pain_points.csv', 'text/csv;charset=utf-8');
+    }
     showToast('已下载 CSV');
   });
 
@@ -354,12 +539,63 @@
     return md;
   }
 
+  function generateCompetitiveMarkdown(data) {
+    const s = data.summary || {};
+    const a = data.analysis || {};
+    const tp = a.title_patterns || {};
+    const cp = a.copy_patterns || {};
+
+    let md = `# 红探竞品内容分析报告\n\n`;
+    md += `## 概览\n`;
+    md += `- 搜索关键词：${s.keyword || '—'}\n`;
+    md += `- 分析帖子数：${s.posts_analyzed || '?'}\n`;
+    md += `- 攻击策略：${s.strategy_overview || '—'}\n\n`;
+
+    md += `## 标题模式\n`;
+    md += `- 高频句式：${(tp.structures || []).join('、')}\n`;
+    md += `- 关键词：${(tp.keywords || []).join('、')}\n`;
+    md += `- 钩子类型：${(tp.hooks || []).join('、')}\n\n`;
+
+    md += `## 文案模式\n`;
+    md += `- 开头钩子：${(cp.opening_hooks || []).join('、')}\n`;
+    md += `- 正文结构：${(cp.structures || []).join('、')}\n`;
+    md += `- CTA 类型：${(cp.cta_types || []).join('、')}\n`;
+    md += `- 语气：${cp.tone || '—'}\n\n`;
+
+    md += `## 成功因素\n`;
+    (a.success_factors || []).forEach(f => { md += `- ${f}\n`; });
+    md += `\n## 竞品弱点\n`;
+    (a.weaknesses || []).forEach(w => { md += `- ${w}\n`; });
+
+    md += `\n## 超越方案\n\n`;
+    (data.battle_plans || []).forEach((p, i) => {
+      md += `### 方案 ${i + 1}\n`;
+      md += `- **标题**：${p.title}\n`;
+      md += `- **开头**：${p.opening}\n`;
+      md += `- **大纲**：\n`;
+      (p.outline || []).forEach(item => { md += `  - ${item}\n`; });
+      md += `- **为什么能赢**：${p.why_wins}\n\n`;
+    });
+
+    return md;
+  }
+
   function generateCSV(data) {
     const BOM = '\uFEFF';
     let csv = BOM + '痛点描述,强度,频率,情绪,原始评论\n';
     (data.pain_points || []).forEach(pp => {
       const evidence = (pp.evidence || []).join(' | ');
       csv += `"${csvEscape(pp.description)}",${pp.intensity},${pp.frequency},"${csvEscape(pp.sentiment)}","${csvEscape(evidence)}"\n`;
+    });
+    return csv;
+  }
+
+  function generateCompetitiveCSV(data) {
+    const BOM = '\uFEFF';
+    let csv = BOM + '方案序号,标题,开头文案,大纲,为什么能赢\n';
+    (data.battle_plans || []).forEach((p, i) => {
+      const outline = (p.outline || []).join(' → ');
+      csv += `${i + 1},"${csvEscape(p.title)}","${csvEscape(p.opening)}","${csvEscape(outline)}","${csvEscape(p.why_wins)}"\n`;
     });
     return csv;
   }

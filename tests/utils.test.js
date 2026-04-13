@@ -9,6 +9,9 @@ const {
   shouldEnablePanel,
   countCommentElements,
   findScrollableContainer,
+  parseEngagementCount,
+  sortByEngagement,
+  generateCompetitiveMarkdown,
 } = require('../src/lib/utils');
 
 // ============================================================
@@ -491,5 +494,161 @@ describe('findScrollableContainer', () => {
     // In browser/jsdom, null falls back to global document — returns documentElement
     const result = findScrollableContainer(null);
     expect(result).not.toBeNull();
+  });
+});
+
+// ============================================================
+// parseEngagementCount
+// ============================================================
+
+describe('parseEngagementCount', () => {
+  test('parses plain numbers', () => {
+    expect(parseEngagementCount('3456')).toBe(3456);
+    expect(parseEngagementCount('0')).toBe(0);
+    expect(parseEngagementCount('12')).toBe(12);
+  });
+
+  test('parses 万 (10k) suffix', () => {
+    expect(parseEngagementCount('1.2万')).toBe(12000);
+    expect(parseEngagementCount('10万')).toBe(100000);
+    expect(parseEngagementCount('0.5万')).toBe(5000);
+  });
+
+  test('handles + suffix', () => {
+    expect(parseEngagementCount('999+')).toBe(999);
+    expect(parseEngagementCount('10万+')).toBe(100000);
+  });
+
+  test('returns 0 for empty/null/undefined', () => {
+    expect(parseEngagementCount('')).toBe(0);
+    expect(parseEngagementCount(null)).toBe(0);
+    expect(parseEngagementCount(undefined)).toBe(0);
+  });
+
+  test('returns 0 for non-numeric strings', () => {
+    expect(parseEngagementCount('abc')).toBe(0);
+    expect(parseEngagementCount('  ')).toBe(0);
+  });
+});
+
+// ============================================================
+// sortByEngagement
+// ============================================================
+
+describe('sortByEngagement', () => {
+  test('sorts by total engagement descending', () => {
+    const posts = [
+      { title: 'low', likes: 10, saves: 5, comments: 2 },
+      { title: 'high', likes: 1000, saves: 500, comments: 200 },
+      { title: 'mid', likes: 100, saves: 50, comments: 20 },
+    ];
+    const sorted = sortByEngagement(posts);
+    expect(sorted[0].title).toBe('high');
+    expect(sorted[1].title).toBe('mid');
+    expect(sorted[2].title).toBe('low');
+  });
+
+  test('handles missing metrics (treats as 0)', () => {
+    const posts = [
+      { title: 'a', likes: 100 },
+      { title: 'b', likes: 50, saves: 200, comments: 100 },
+    ];
+    const sorted = sortByEngagement(posts);
+    expect(sorted[0].title).toBe('b');
+    expect(sorted[1].title).toBe('a');
+  });
+
+  test('does not mutate original array', () => {
+    const posts = [
+      { title: 'b', likes: 1 },
+      { title: 'a', likes: 100 },
+    ];
+    const original = [...posts];
+    sortByEngagement(posts);
+    expect(posts[0].title).toBe(original[0].title);
+  });
+
+  test('returns empty array for empty input', () => {
+    expect(sortByEngagement([])).toEqual([]);
+  });
+});
+
+// ============================================================
+// generateCompetitiveMarkdown
+// ============================================================
+
+describe('generateCompetitiveMarkdown', () => {
+  const MOCK_COMPETITIVE = {
+    analysis: {
+      title_patterns: {
+        structures: ['疑问句', '数字清单'],
+        keywords: ['避坑', '必看'],
+        hooks: ['好奇心', '恐惧'],
+        avg_length: 18
+      },
+      cover_patterns: {
+        styles: ['对比图'],
+        text_overlay: '大字标题',
+        colors: '暖色调'
+      },
+      copy_patterns: {
+        opening_hooks: ['反问开头'],
+        structures: ['清单型'],
+        cta_types: ['收藏转发'],
+        tone: '闺蜜聊天风'
+      },
+      success_factors: ['标题制造焦虑', '清单易读'],
+      weaknesses: ['内容浅显', '缺少个人体验']
+    },
+    battle_plans: [
+      {
+        title: '超越标题1',
+        opening: '文案前3行内容',
+        outline: ['要点1', '要点2'],
+        why_wins: '因为更深入'
+      }
+    ],
+    summary: {
+      keyword: '美甲',
+      posts_analyzed: 15,
+      top_engagement: 12000,
+      strategy_overview: '用深度体验击败浅层种草'
+    }
+  };
+
+  test('includes report header', () => {
+    const md = generateCompetitiveMarkdown(MOCK_COMPETITIVE);
+    expect(md).toContain('# 竞品内容分析报告');
+  });
+
+  test('includes summary info', () => {
+    const md = generateCompetitiveMarkdown(MOCK_COMPETITIVE);
+    expect(md).toContain('美甲');
+    expect(md).toContain('15');
+  });
+
+  test('includes title pattern analysis', () => {
+    const md = generateCompetitiveMarkdown(MOCK_COMPETITIVE);
+    expect(md).toContain('疑问句');
+    expect(md).toContain('避坑');
+  });
+
+  test('includes battle plans with titles and openings', () => {
+    const md = generateCompetitiveMarkdown(MOCK_COMPETITIVE);
+    expect(md).toContain('超越标题1');
+    expect(md).toContain('文案前3行内容');
+    expect(md).toContain('因为更深入');
+  });
+
+  test('includes success factors and weaknesses', () => {
+    const md = generateCompetitiveMarkdown(MOCK_COMPETITIVE);
+    expect(md).toContain('标题制造焦虑');
+    expect(md).toContain('缺少个人体验');
+  });
+
+  test('handles empty battle_plans', () => {
+    const data = { ...MOCK_COMPETITIVE, battle_plans: [] };
+    const md = generateCompetitiveMarkdown(data);
+    expect(md).toContain('# 竞品内容分析报告');
   });
 });

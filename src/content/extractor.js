@@ -198,6 +198,87 @@
     return { keyword, posts };
   }
 
+  // ---- Competitive Search Results Extraction ----
+  function parseEngagement(str) {
+    if (!str) return 0;
+    str = String(str).trim().replace(/\+$/, '');
+    if (!str) return 0;
+    if (str.endsWith('万')) {
+      const num = parseFloat(str.replace('万', ''));
+      return isNaN(num) ? 0 : Math.round(num * 10000);
+    }
+    const num = parseInt(str, 10);
+    return isNaN(num) ? 0 : num;
+  }
+
+  function extractCompetitiveSearchResults(topN = 15) {
+    const posts = [];
+    const seen = new Set();
+
+    let keyword = '';
+    const urlParams = new URLSearchParams(window.location.search);
+    keyword = urlParams.get('keyword') || urlParams.get('q') || '';
+    if (!keyword) {
+      const searchInput = document.querySelector('input[type="search"], input[class*="search"], .search-input input');
+      if (searchInput) keyword = searchInput.value;
+    }
+
+    const cardSelectors = [
+      '.note-item',
+      '[class*="note-item"]',
+      '.search-result-item',
+      '[class*="noteItem"]',
+      'section.note-item',
+      '[class*="search"] [class*="card"]',
+    ];
+
+    let cards = [];
+    for (const sel of cardSelectors) {
+      cards = document.querySelectorAll(sel);
+      if (cards.length > 0) break;
+    }
+    if (cards.length === 0) {
+      cards = document.querySelectorAll('[class*="feeds"] > div, [class*="waterfall"] > div');
+    }
+
+    cards.forEach(card => {
+      const titleEl = card.querySelector(
+        '.title, [class*="title"], a[class*="title"], .desc, [class*="desc"], span'
+      );
+      const title = titleEl?.textContent?.trim();
+      if (!title || seen.has(title)) return;
+      seen.add(title);
+
+      // Engagement metrics
+      const likeEl = card.querySelector('[class*="like"] span, [class*="count"]');
+      const saveEl = card.querySelector('[class*="collect"] span, [class*="save"] span');
+      const commentEl = card.querySelector('[class*="comment"] span, [class*="chat"] span');
+
+      const likes = parseEngagement(likeEl?.textContent?.trim());
+      const saves = parseEngagement(saveEl?.textContent?.trim());
+      const comments = parseEngagement(commentEl?.textContent?.trim());
+
+      // Cover image URL
+      const imgEl = card.querySelector('img');
+      const coverUrl = imgEl?.src || '';
+
+      // Author
+      const authorEl = card.querySelector('[class*="author"] span, [class*="nickname"]');
+      const author = authorEl?.textContent?.trim() || '';
+
+      posts.push({ title, likes, saves, comments, coverUrl, author });
+    });
+
+    // Sort by total engagement and take top N
+    posts.sort((a, b) => {
+      const totalA = a.likes + a.saves + a.comments;
+      const totalB = b.likes + b.saves + b.comments;
+      return totalB - totalA;
+    });
+
+    return { keyword, posts: posts.slice(0, topN) };
+  }
+
   // ---- Auto-scroll to load more comments ----
   function countCommentElements() {
     const selectors = [
@@ -326,6 +407,18 @@
         error: '请在小红书帖子页面或搜索结果页使用此插件'
       });
       return false;
+    }
+
+    if (message.type === 'EXTRACT_COMPETITIVE') {
+      loadMoreSearchCards(8).then(() => {
+        const data = extractCompetitiveSearchResults(15);
+        sendResponse({
+          pageType: 'search',
+          data,
+          url: window.location.href
+        });
+      });
+      return true; // async
     }
   });
 
