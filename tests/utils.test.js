@@ -579,76 +579,47 @@ describe('sortByEngagement', () => {
 
 describe('generateCompetitiveMarkdown', () => {
   const MOCK_COMPETITIVE = {
-    analysis: {
-      title_patterns: {
-        structures: ['疑问句', '数字清单'],
-        keywords: ['避坑', '必看'],
-        hooks: ['好奇心', '恐惧'],
-        avg_length: 18
-      },
-      cover_patterns: {
-        styles: ['对比图'],
-        text_overlay: '大字标题',
-        colors: '暖色调'
-      },
-      copy_patterns: {
-        opening_hooks: ['反问开头'],
-        structures: ['清单型'],
-        cta_types: ['收藏转发'],
-        tone: '闺蜜聊天风'
-      },
-      success_factors: ['标题制造焦虑', '清单易读'],
-      weaknesses: ['内容浅显', '缺少个人体验']
+    post: {
+      title: '最全美甲避坑指南',
+      body: '姐妹们，今天来分享一下我的美甲经验...',
+      tags: ['美甲', '避坑', '指南'],
+      cover_suggestion: '用对比图展示好坏效果'
     },
-    battle_plans: [
-      {
-        title: '超越标题1',
-        opening: '文案前3行内容',
-        outline: ['要点1', '要点2'],
-        why_wins: '因为更深入'
-      }
-    ],
-    summary: {
-      keyword: '美甲',
-      posts_analyzed: 15,
-      top_engagement: 12000,
-      strategy_overview: '用深度体验击败浅层种草'
-    }
+    analysis: '热帖普遍采用清单型结构和避坑角度',
+    sources_count: 20
   };
 
   test('includes report header', () => {
     const md = generateCompetitiveMarkdown(MOCK_COMPETITIVE);
-    expect(md).toContain('# 竞品内容分析报告');
+    expect(md).toContain('# 红探 AI 生成帖子');
   });
 
-  test('includes summary info', () => {
+  test('includes sources count', () => {
     const md = generateCompetitiveMarkdown(MOCK_COMPETITIVE);
-    expect(md).toContain('美甲');
-    expect(md).toContain('15');
+    expect(md).toContain('20');
   });
 
-  test('includes title pattern analysis', () => {
+  test('includes generated title and body', () => {
     const md = generateCompetitiveMarkdown(MOCK_COMPETITIVE);
-    expect(md).toContain('疑问句');
-    expect(md).toContain('避坑');
+    expect(md).toContain('最全美甲避坑指南');
+    expect(md).toContain('姐妹们，今天来分享一下');
   });
 
-  test('includes battle plans with titles and openings', () => {
+  test('includes tags as hashtags', () => {
     const md = generateCompetitiveMarkdown(MOCK_COMPETITIVE);
-    expect(md).toContain('超越标题1');
-    expect(md).toContain('文案前3行内容');
-    expect(md).toContain('因为更深入');
+    expect(md).toContain('#美甲');
+    expect(md).toContain('#避坑');
   });
 
-  test('includes success factors and weaknesses', () => {
+  test('includes cover suggestion and analysis', () => {
     const md = generateCompetitiveMarkdown(MOCK_COMPETITIVE);
-    expect(md).toContain('标题制造焦虑');
-    expect(md).toContain('缺少个人体验');
+    expect(md).toContain('对比图');
+    expect(md).toContain('清单型结构');
   });
 
-  test('handles empty battle_plans', () => {
-    const data = { ...MOCK_COMPETITIVE, battle_plans: [] };
+  test('handles empty post data', () => {
+    const data = { post: {}, sources_count: 0 };
     const md = generateCompetitiveMarkdown(data);
-    expect(md).toContain('# 竞品内容分析报告');
+    expect(md).toContain('# 红探 AI 生成帖子');
   });
 });

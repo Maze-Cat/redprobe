@@ -111,16 +111,28 @@
     showSection(loadingSection);
     loadingText.textContent = '正在提取页面内容...';
     loadingSub.textContent = type === 'competitive'
-      ? '自动滚动加载爆款帖子，请稍候'
+      ? '正在搜索千赞热帖，逐篇提取内容...'
       : type === 'search'
         ? '自动滚动加载更多结果，请稍候'
         : '自动加载评论中，请稍候';
+
+    // Listen for extraction progress (competitive mode clicks into each post)
+    const progressListener = (message) => {
+      if (message.type === 'EXTRACT_PROGRESS') {
+        loadingText.textContent = `正在提取第 ${message.current}/${message.total} 篇帖子内容...`;
+        loadingSub.textContent = '点击帖子 → 抓取正文 → 下一篇';
+      }
+    };
+    if (type === 'competitive') {
+      chrome.runtime.onMessage.addListener(progressListener);
+    }
 
     try {
       // Step 1: Extract content from page
       const extractMsgType = type === 'competitive' ? 'EXTRACT_COMPETITIVE_CONTENT' : 'EXTRACT_CONTENT';
       const extracted = await new Promise((resolve, reject) => {
         chrome.runtime.sendMessage({ type: extractMsgType }, (response) => {
+          chrome.runtime.onMessage.removeListener(progressListener);
           if (chrome.runtime.lastError) {
             reject(new Error('无法连接到页面，请刷新小红书页面后重试'));
             return;
@@ -163,9 +175,9 @@
         if (!extracted.data.posts || extracted.data.posts.length === 0) {
           throw new Error('未找到搜索结果。请在小红书搜索结果页使用此功能。');
         }
-
-        loadingText.textContent = `已提取 ${extracted.data.posts.length} 篇高互动帖子`;
-        loadingSub.textContent = 'AI 正在拆解竞品，生成超越方案...';
+        const withBody = extracted.data.posts.filter(p => p.body).length;
+        loadingText.textContent = `已提取 ${extracted.data.posts.length} 篇热帖（${withBody} 篇含完整正文）`;
+        loadingSub.textContent = 'AI 正在融合精华，创作帖子...';
       }
 
       // Step 2: Send to AI for analysis (with streaming progress)
@@ -329,149 +341,72 @@
   // ---- Competitive Results Rendering ----
   function renderCompetitiveResults(data) {
     competitiveSection.style.display = '';
-
-    // Summary card
-    const summary = data.summary || {};
     summaryCard.style.display = '';
+
+    const post = data.post || {};
+
+    // Summary / analysis card
     summaryCard.innerHTML = `
       <div class="competitive-summary fade-in">
-        <div class="summary-title">⚔️ 竞品内容分析报告</div>
+        <div class="summary-title">⚔️ AI 生成的爆款帖子</div>
         <div class="summary-stats">
-          <span>关键词：${escapeHtml(summary.keyword || '—')}</span>
-          <span>分析了 ${summary.posts_analyzed || '?'} 篇爆款帖子</span>
+          <span>基于 ${data.sources_count || '?'} 篇千赞热帖融合创作</span>
         </div>
-        <div class="summary-opportunity fade-in">
-          <div class="summary-opp-label">🎯 攻击策略</div>
-          ${escapeHtml(summary.strategy_overview || '—')}
-        </div>
-      </div>
-    `;
-
-    // Analysis section
-    renderAnalysis(data.analysis || {});
-
-    // Battle plans
-    renderBattlePlans(data.battle_plans || []);
-  }
-
-  function renderAnalysis(analysis) {
-    const tp = analysis.title_patterns || {};
-    const cp = analysis.copy_patterns || {};
-    const cvp = analysis.cover_patterns || {};
-    const factors = analysis.success_factors || [];
-    const weaknesses = analysis.weaknesses || [];
-
-    analysisSection.innerHTML = `
-      <div class="pattern-card fade-in">
-        <div class="pattern-card-title">📝 标题模式</div>
-        <div class="pattern-section">
-          <div class="pattern-label">高频句式</div>
-          <div class="pattern-tags">
-            ${(tp.structures || []).map(s => `<span class="pattern-tag">${escapeHtml(s)}</span>`).join('')}
-          </div>
-        </div>
-        <div class="pattern-section">
-          <div class="pattern-label">关键词</div>
-          <div class="pattern-tags">
-            ${(tp.keywords || []).map(k => `<span class="pattern-tag">${escapeHtml(k)}</span>`).join('')}
-          </div>
-        </div>
-        <div class="pattern-section">
-          <div class="pattern-label">钩子类型</div>
-          <div class="pattern-tags">
-            ${(tp.hooks || []).map(h => `<span class="pattern-tag">${escapeHtml(h)}</span>`).join('')}
-          </div>
-        </div>
-        ${tp.avg_length ? `<div class="pattern-meta">平均标题长度：${parseInt(tp.avg_length, 10)} 字</div>` : ''}
-      </div>
-
-      <div class="pattern-card fade-in">
-        <div class="pattern-card-title">✍️ 文案模式</div>
-        <div class="pattern-section">
-          <div class="pattern-label">开头钩子</div>
-          <div class="pattern-tags">
-            ${(cp.opening_hooks || []).map(h => `<span class="pattern-tag">${escapeHtml(h)}</span>`).join('')}
-          </div>
-        </div>
-        <div class="pattern-section">
-          <div class="pattern-label">正文结构</div>
-          <div class="pattern-tags">
-            ${(cp.structures || []).map(s => `<span class="pattern-tag">${escapeHtml(s)}</span>`).join('')}
-          </div>
-        </div>
-        <div class="pattern-section">
-          <div class="pattern-label">CTA 类型</div>
-          <div class="pattern-tags">
-            ${(cp.cta_types || []).map(c => `<span class="pattern-tag">${escapeHtml(c)}</span>`).join('')}
-          </div>
-        </div>
-        ${cp.tone ? `<div class="pattern-meta">语气：${escapeHtml(cp.tone)}</div>` : ''}
-      </div>
-
-      <div class="pattern-card fade-in">
-        <div class="pattern-card-title">🎨 封面规律</div>
-        ${cvp.styles ? `
-          <div class="pattern-section">
-            <div class="pattern-label">排版风格</div>
-            <div class="pattern-tags">
-              ${(cvp.styles || []).map(s => `<span class="pattern-tag">${escapeHtml(s)}</span>`).join('')}
-            </div>
+        ${data.analysis ? `
+          <div class="summary-opportunity fade-in">
+            <div class="summary-opp-label">💡 创作思路</div>
+            ${escapeHtml(data.analysis)}
           </div>
         ` : ''}
-        ${cvp.text_overlay ? `<div class="pattern-meta">文字叠加：${escapeHtml(cvp.text_overlay)}</div>` : ''}
-        ${cvp.colors ? `<div class="pattern-meta">色彩倾向：${escapeHtml(cvp.colors)}</div>` : ''}
-      </div>
-
-      <div class="pattern-card fade-in">
-        <div class="pattern-card-title">✅ 成功因素</div>
-        <div class="pattern-tags">
-          ${factors.map(f => `<span class="pattern-tag">${escapeHtml(f)}</span>`).join('')}
-        </div>
-      </div>
-
-      <div class="pattern-card fade-in">
-        <div class="pattern-card-title">💀 竞品弱点</div>
-        <div class="pattern-tags">
-          ${weaknesses.map(w => `<span class="weakness-tag">${escapeHtml(w)}</span>`).join('')}
-        </div>
       </div>
     `;
-  }
 
-  function renderBattlePlans(plans) {
-    battlePlansSection.innerHTML = `
-      <div class="pattern-card-title" style="margin-top:16px;">🗡️ 超越方案</div>
-      ${plans.map((plan, i) => `
-        <div class="battle-plan slide-in" style="animation-delay: ${i * 0.1}s">
-          <div class="battle-plan-number">${i + 1}</div>
-          <div class="battle-plan-title">
-            ${escapeHtml(plan.title)}
-            <button class="copy-btn-inline" data-copy="${escapeHtml(plan.title)}" title="复制标题">📋</button>
-          </div>
-          <div class="battle-plan-opening">
-            ${escapeHtml(plan.opening)}
-            <button class="copy-btn-inline" data-copy="${escapeHtml(plan.opening)}" title="复制开头">📋</button>
-          </div>
-          <div class="battle-plan-outline">
-            <div class="pattern-label">内容大纲</div>
-            <ul>
-              ${(plan.outline || []).map(item => `<li>${escapeHtml(item)}</li>`).join('')}
-            </ul>
-          </div>
-          <div class="battle-plan-why">
-            <div class="pattern-label">为什么能赢</div>
-            ${escapeHtml(plan.why_wins)}
-          </div>
+    // Generated post display
+    analysisSection.innerHTML = `
+      <div class="generated-post fade-in">
+        <div class="gen-section-header">
+          <span class="gen-label">📝 标题</span>
+          <button class="copy-btn-inline" data-copy-target="gen-title">📋 复制</button>
         </div>
-      `).join('')}
+        <div class="gen-title" id="gen-title">${escapeHtml(post.title || '')}</div>
+
+        <div class="gen-section-header">
+          <span class="gen-label">📄 正文</span>
+          <button class="copy-btn-inline" data-copy-target="gen-body">📋 复制</button>
+        </div>
+        <div class="gen-body" id="gen-body">${escapeHtml(post.body || '').replace(/\n/g, '<br>')}</div>
+
+        ${post.tags && post.tags.length > 0 ? `
+          <div class="gen-section-header">
+            <span class="gen-label">🏷️ 话题标签</span>
+            <button class="copy-btn-inline" data-copy-target="gen-tags">📋 复制</button>
+          </div>
+          <div class="gen-tags" id="gen-tags">
+            ${post.tags.map(t => `<span class="keyword-tag">#${escapeHtml(t)}</span>`).join(' ')}
+          </div>
+        ` : ''}
+
+        ${post.cover_suggestion ? `
+          <div class="gen-section-header">
+            <span class="gen-label">🎨 封面建议</span>
+          </div>
+          <div class="gen-cover">${escapeHtml(post.cover_suggestion)}</div>
+        ` : ''}
+      </div>
     `;
+
+    battlePlansSection.innerHTML = '';
 
     // Bind copy buttons
-    battlePlansSection.querySelectorAll('.copy-btn-inline').forEach(btn => {
+    analysisSection.querySelectorAll('.copy-btn-inline').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        copyToClipboard(btn.dataset.copy);
-        showToast('已复制');
+        const targetId = btn.dataset.copyTarget;
+        const targetEl = document.getElementById(targetId);
+        if (targetEl) {
+          copyToClipboard(targetEl.textContent);
+          showToast('已复制');
+        }
       });
     });
   }
@@ -540,42 +475,23 @@
   }
 
   function generateCompetitiveMarkdown(data) {
-    const s = data.summary || {};
-    const a = data.analysis || {};
-    const tp = a.title_patterns || {};
-    const cp = a.copy_patterns || {};
+    const post = data.post || {};
 
-    let md = `# 红探竞品内容分析报告\n\n`;
-    md += `## 概览\n`;
-    md += `- 搜索关键词：${s.keyword || '—'}\n`;
-    md += `- 分析帖子数：${s.posts_analyzed || '?'}\n`;
-    md += `- 攻击策略：${s.strategy_overview || '—'}\n\n`;
+    let md = `# 红探 AI 生成帖子\n\n`;
+    md += `> 基于 ${data.sources_count || '?'} 篇千赞热帖融合创作\n\n`;
 
-    md += `## 标题模式\n`;
-    md += `- 高频句式：${(tp.structures || []).join('、')}\n`;
-    md += `- 关键词：${(tp.keywords || []).join('、')}\n`;
-    md += `- 钩子类型：${(tp.hooks || []).join('、')}\n\n`;
+    md += `## 标题\n${post.title || '—'}\n\n`;
+    md += `## 正文\n${post.body || '—'}\n\n`;
 
-    md += `## 文案模式\n`;
-    md += `- 开头钩子：${(cp.opening_hooks || []).join('、')}\n`;
-    md += `- 正文结构：${(cp.structures || []).join('、')}\n`;
-    md += `- CTA 类型：${(cp.cta_types || []).join('、')}\n`;
-    md += `- 语气：${cp.tone || '—'}\n\n`;
-
-    md += `## 成功因素\n`;
-    (a.success_factors || []).forEach(f => { md += `- ${f}\n`; });
-    md += `\n## 竞品弱点\n`;
-    (a.weaknesses || []).forEach(w => { md += `- ${w}\n`; });
-
-    md += `\n## 超越方案\n\n`;
-    (data.battle_plans || []).forEach((p, i) => {
-      md += `### 方案 ${i + 1}\n`;
-      md += `- **标题**：${p.title}\n`;
-      md += `- **开头**：${p.opening}\n`;
-      md += `- **大纲**：\n`;
-      (p.outline || []).forEach(item => { md += `  - ${item}\n`; });
-      md += `- **为什么能赢**：${p.why_wins}\n\n`;
-    });
+    if (post.tags && post.tags.length) {
+      md += `## 话题标签\n${post.tags.map(t => `#${t}`).join(' ')}\n\n`;
+    }
+    if (post.cover_suggestion) {
+      md += `## 封面建议\n${post.cover_suggestion}\n\n`;
+    }
+    if (data.analysis) {
+      md += `## 创作思路\n${data.analysis}\n`;
+    }
 
     return md;
   }
@@ -592,11 +508,13 @@
 
   function generateCompetitiveCSV(data) {
     const BOM = '\uFEFF';
-    let csv = BOM + '方案序号,标题,开头文案,大纲,为什么能赢\n';
-    (data.battle_plans || []).forEach((p, i) => {
-      const outline = (p.outline || []).join(' → ');
-      csv += `${i + 1},"${csvEscape(p.title)}","${csvEscape(p.opening)}","${csvEscape(outline)}","${csvEscape(p.why_wins)}"\n`;
-    });
+    const post = data.post || {};
+    let csv = BOM + '字段,内容\n';
+    csv += `"标题","${csvEscape(post.title || '')}"\n`;
+    csv += `"正文","${csvEscape(post.body || '')}"\n`;
+    csv += `"标签","${csvEscape((post.tags || []).join(', '))}"\n`;
+    csv += `"封面建议","${csvEscape(post.cover_suggestion || '')}"\n`;
+    csv += `"创作思路","${csvEscape(data.analysis || '')}"\n`;
     return csv;
   }
 

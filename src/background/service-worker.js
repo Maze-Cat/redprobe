@@ -198,7 +198,7 @@ async function callClaudeAPIStreaming(systemPrompt, userContent) {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
+      max_tokens: 8192,
       stream: true,
       system: systemPrompt,
       messages: [
@@ -273,94 +273,48 @@ async function handleAnalyzeSearch(data) {
 // Competitive Content Analysis
 // ============================================================
 
-const COMPETITIVE_SYSTEM_PROMPT = `你是一个激进的小红书内容策略师。你的使命是帮用户在内容竞争中碾压对手。
+const COMPETITIVE_SYSTEM_PROMPT = `你是一个顶级小红书博主和内容创作者。
 
-用户给你一组搜索结果中表现最好的帖子（高赞/高收藏/高评论）。你要像拆解敌人的武器一样分析它们，然后造出更强的。
+我会给你一组某个关键词下千赞以上的热帖（标题和完整正文）。
 
-## 分析任务
+你的任务：
+1. 深度分析这些热帖为什么受欢迎（内容角度、结构、表达方式）
+2. 提取所有帖子中有价值的干货和知识点
+3. 融合所有精华，创作一篇全新的、比它们都更优秀的完整小红书帖子
 
-### 第一部分：竞品拆解
-1. **标题模式分析**：
-   - 高频句式结构（疑问句/数字清单/情绪词/反转...）
-   - 关键词密度（哪些词反复出现？）
-   - 钩子类型（好奇心/恐惧/利益承诺/社交认同...）
-   - 标题字数分布
-
-2. **封面规律**（基于标题和内容推测）：
-   - 可能的排版风格
-   - 文字叠加模式
-   - 色彩倾向
-
-3. **文案模式**：
-   - 开头钩子类型
-   - 正文结构（教程型/故事型/清单型/对比型...）
-   - CTA（行动号召）类型
-   - 语气和人称
-
-4. **成功因素**：
-   - 为什么这些帖子互动量高？
-   - 它们满足了用户什么心理需求？
-   - 它们的弱点在哪里？（你要从这些弱点进攻）
-
-### 第二部分：超越方案
-基于分析，生成 3 组内容方案，每组包含：
-- 标题（要比分析的帖子更有吸引力）
-- 文案开头（前3行，这是用户决定是否展开的关键）
-- 内容大纲
-- 预测为什么这个方案能超越竞品
-
-态度要求：
-- 把竞品当作你要击败的对手
-- 不要温和的建议，要给出直接的、可执行的攻击策略
-- 语气犀利、自信、有攻击性
-- 用中文输出
+创作要求：
+- 标题：简洁有力，比所有热帖更吸引人点击
+- 正文：融合所有帖子的精华要点，用全新的结构和表达重新组织
+- 使用 emoji 分段、适当使用符号排版，符合小红书排版习惯
+- 语气亲切自然，像真实用户在分享经验
+- 内容要有深度和信息量，不能是简单拼凑
+- 正文控制在 500-1000 字
+- 建议 3-5 个话题标签
+- 给出封面设计建议
 
 严格按以下JSON格式输出，不要输出任何其他内容：
 {
-  "analysis": {
-    "title_patterns": {
-      "structures": ["句式1", "句式2"],
-      "keywords": ["关键词1", "关键词2"],
-      "hooks": ["钩子类型1", "钩子类型2"],
-      "avg_length": 15
-    },
-    "cover_patterns": {
-      "styles": ["风格1"],
-      "text_overlay": "描述",
-      "colors": "描述"
-    },
-    "copy_patterns": {
-      "opening_hooks": ["类型1"],
-      "structures": ["类型1"],
-      "cta_types": ["类型1"],
-      "tone": "描述"
-    },
-    "success_factors": ["因素1", "因素2"],
-    "weaknesses": ["弱点1", "弱点2"]
+  "post": {
+    "title": "帖子标题",
+    "body": "完整正文（包含emoji排版、换行符用\\n表示）",
+    "tags": ["话题标签1", "话题标签2", "话题标签3"],
+    "cover_suggestion": "封面设计建议（描述应该用什么样的图片和排版）"
   },
-  "battle_plans": [
-    {
-      "title": "超越标题",
-      "opening": "文案前3行",
-      "outline": ["大纲要点1", "大纲要点2"],
-      "why_wins": "为什么能赢"
-    }
-  ],
-  "summary": {
-    "keyword": "搜索关键词",
-    "posts_analyzed": 15,
-    "top_engagement": 12000,
-    "strategy_overview": "一句话总结攻击策略"
-  }
+  "analysis": "一段话总结你从这些热帖中发现的成功模式，以及你的创作思路",
+  "sources_count": 20
 }`;
 
 async function handleAnalyzeCompetitive(data) {
   try {
     const postsText = data.posts.map((p, i) => {
-      const total = (p.likes || 0) + (p.saves || 0) + (p.comments || 0);
-      return `${i + 1}. 标题：${p.title}\n   点赞：${p.likes || 0} | 收藏：${p.saves || 0} | 评论：${p.comments || 0} | 总互动：${total}${p.author ? `\n   作者：${p.author}` : ''}`;
-    }).join('\n\n');
-    const userContent = `搜索关键词：${data.keyword || '未知'}\n\n以下是该关键词下互动量最高的 ${data.posts.length} 篇帖子：\n\n${postsText}`;
+      let text = `【热帖${i + 1}】（${p.likes || 0} 赞）`;
+      if (p.author) text += ` 作者：${p.author}`;
+      text += `\n标题：${p.title}`;
+      if (p.body) text += `\n正文：${p.body}`;
+      return text;
+    }).join('\n\n---\n\n');
+
+    const userContent = `搜索关键词：${data.keyword || '未知'}\n\n以下是该关键词下的 ${data.posts.length} 篇千赞热帖：\n\n${postsText}`;
     const result = await callClaudeAPIStreaming(COMPETITIVE_SYSTEM_PROMPT, userContent);
     return { success: true, data: result, type: 'competitive' };
   } catch (err) {

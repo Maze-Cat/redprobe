@@ -455,102 +455,70 @@ body {
 }
 
 .competitive-summary .summary-title { opacity: 0.85; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
-.competitive-summary .strategy { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
-.competitive-summary .meta { font-size: 12px; opacity: 0.8; }
 
-.pattern-card {
+/* Generated Post Display */
+.generated-post {
   background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px;
-  margin-bottom: 10px;
-}
-.pattern-card h4 {
-  font-size: 13px;
-  font-weight: 600;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.pattern-item {
-  font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.6;
-  margin-bottom: 4px;
-}
-.pattern-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  margin-top: 4px;
-}
-.pattern-tag {
-  background: var(--red-light);
-  color: var(--red-primary);
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 500;
-}
-.weakness-tag {
-  background: #fff3e0;
-  color: #e65100;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 500;
-}
-
-.battle-plan {
-  background: var(--card-bg);
-  border: 2px solid var(--red-primary);
   border-radius: var(--radius);
   padding: 16px;
-  margin-bottom: 12px;
-  position: relative;
+  margin-top: 12px;
 }
-.battle-plan-num {
-  position: absolute;
-  top: -10px;
-  left: 14px;
-  background: var(--red-primary);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 10px;
-  border-radius: 10px;
-}
-.battle-plan h4 {
-  font-size: 14px;
-  font-weight: 700;
-  margin-top: 6px;
-  margin-bottom: 10px;
-  line-height: 1.4;
-}
-.battle-plan-opening {
-  font-size: 12px;
-  color: var(--text-secondary);
-  padding: 10px;
-  background: #f8f8f8;
-  border-radius: 6px;
-  border-left: 3px solid var(--red-primary);
-  line-height: 1.6;
-  margin-bottom: 10px;
-}
-.battle-plan-outline {
-  font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.6;
+
+.gen-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
   margin-bottom: 8px;
 }
-.battle-plan-outline li { margin-bottom: 2px; }
-.battle-plan-why {
+.gen-section-header:first-child { margin-top: 0; }
+
+.gen-label {
   font-size: 12px;
-  font-weight: 500;
-  color: var(--red-primary);
-  margin-top: 8px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
+
+.gen-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.4;
+  padding: 10px 14px;
+  background: var(--red-light);
+  border-radius: var(--radius-sm);
+  border-left: 4px solid var(--red-primary);
+}
+
+.gen-body {
+  font-size: 14px;
+  line-height: 1.9;
+  color: var(--text-primary);
+  padding: 14px;
+  background: #f8f9fa;
+  border-radius: var(--radius-sm);
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.gen-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.gen-cover {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 10px 14px;
+  background: #f8f9fa;
+  border-radius: var(--radius-sm);
+  line-height: 1.7;
+}
+
 .copy-btn-inline {
   background: none;
   border: 1px solid var(--border);
@@ -558,9 +526,9 @@ body {
   font-size: 11px;
   cursor: pointer;
   padding: 2px 8px;
-  margin-left: 6px;
   transition: all 0.2s;
   font-family: inherit;
+  white-space: nowrap;
 }
 .copy-btn-inline:hover { background: var(--border); }
 

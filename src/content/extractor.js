@@ -198,7 +198,7 @@
     return { keyword, posts };
   }
 
-  // ---- Competitive Search Results Extraction ----
+  // ---- Engagement Parsing ----
   function parseEngagement(str) {
     if (!str) return 0;
     str = String(str).trim().replace(/\+$/, '');
@@ -211,72 +211,184 @@
     return isNaN(num) ? 0 : num;
   }
 
-  function extractCompetitiveSearchResults(topN = 15) {
-    const posts = [];
-    const seen = new Set();
-
-    let keyword = '';
+  // ---- Helpers for Competitive Extraction ----
+  function getSearchKeyword() {
     const urlParams = new URLSearchParams(window.location.search);
-    keyword = urlParams.get('keyword') || urlParams.get('q') || '';
+    let keyword = urlParams.get('keyword') || urlParams.get('q') || '';
     if (!keyword) {
       const searchInput = document.querySelector('input[type="search"], input[class*="search"], .search-input input');
       if (searchInput) keyword = searchInput.value;
     }
+    return keyword;
+  }
 
-    const cardSelectors = [
-      '.note-item',
-      '[class*="note-item"]',
-      '.search-result-item',
-      '[class*="noteItem"]',
-      'section.note-item',
-      '[class*="search"] [class*="card"]',
+  function collectSearchCards() {
+    const cards = [];
+    const seen = new Set();
+    const selectors = [
+      '.note-item', '[class*="note-item"]', 'section.note-item',
+      '[class*="noteItem"]', '.search-result-item',
     ];
-
-    let cards = [];
-    for (const sel of cardSelectors) {
-      cards = document.querySelectorAll(sel);
-      if (cards.length > 0) break;
+    let cardEls = [];
+    for (const sel of selectors) {
+      cardEls = document.querySelectorAll(sel);
+      if (cardEls.length > 0) break;
     }
-    if (cards.length === 0) {
-      cards = document.querySelectorAll('[class*="feeds"] > div, [class*="waterfall"] > div');
+    if (cardEls.length === 0) {
+      cardEls = document.querySelectorAll('[class*="feeds"] > div, [class*="waterfall"] > div');
     }
 
-    cards.forEach(card => {
-      const titleEl = card.querySelector(
-        '.title, [class*="title"], a[class*="title"], .desc, [class*="desc"], span'
-      );
+    cardEls.forEach(el => {
+      const titleEl = el.querySelector('.title, [class*="title"], a[class*="title"], span');
       const title = titleEl?.textContent?.trim();
       if (!title || seen.has(title)) return;
       seen.add(title);
 
-      // Engagement metrics
-      const likeEl = card.querySelector('[class*="like"] span, [class*="count"]');
-      const saveEl = card.querySelector('[class*="collect"] span, [class*="save"] span');
-      const commentEl = card.querySelector('[class*="comment"] span, [class*="chat"] span');
+      const likeEl = el.querySelector('[class*="like"] span, [class*="count"]');
+      const likes = parseEngagement(likeEl?.textContent);
 
-      const likes = parseEngagement(likeEl?.textContent?.trim());
-      const saves = parseEngagement(saveEl?.textContent?.trim());
-      const comments = parseEngagement(commentEl?.textContent?.trim());
-
-      // Cover image URL
-      const imgEl = card.querySelector('img');
-      const coverUrl = imgEl?.src || '';
-
-      // Author
-      const authorEl = card.querySelector('[class*="author"] span, [class*="nickname"]');
+      const authorEl = el.querySelector('[class*="author"] span, [class*="nickname"]');
       const author = authorEl?.textContent?.trim() || '';
 
-      posts.push({ title, likes, saves, comments, coverUrl, author });
+      cards.push({ element: el, title, likes, author });
     });
+    return cards;
+  }
 
-    // Sort by total engagement and take top N
-    posts.sort((a, b) => {
-      const totalA = a.likes + a.saves + a.comments;
-      const totalB = b.likes + b.saves + b.comments;
-      return totalB - totalA;
+  function waitForElement(selector, timeout = 5000) {
+    return new Promise(resolve => {
+      const el = document.querySelector(selector);
+      if (el) { resolve(el); return; }
+      const observer = new MutationObserver(() => {
+        const found = document.querySelector(selector);
+        if (found) { observer.disconnect(); resolve(found); }
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+      setTimeout(() => { observer.disconnect(); resolve(null); }, timeout);
     });
+  }
 
-    return { keyword, posts: posts.slice(0, topN) };
+  async function closePostOverlay() {
+    // Method 1: Close button
+    const closeBtns = document.querySelectorAll(
+      '.close-circle, [class*="close-circle"], [class*="closeBtn"]'
+    );
+    for (const btn of closeBtns) {
+      if (btn.offsetParent !== null) { btn.click(); await sleep(500); return; }
+    }
+    // Method 2: Escape
+    document.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true
+    }));
+    await sleep(500);
+    // Method 3: History back if overlay still present
+    if (document.querySelector('.note-detail-mask, [class*="note-detail"]')) {
+      window.history.back();
+      await sleep(500);
+    }
+  }
+
+  function extractPostContentFromOverlay() {
+    // Scope to the overlay container if possible
+    const container = document.querySelector(
+      '.note-detail-mask, [class*="note-detail"], .note-container'
+    ) || document;
+
+    let title = '', body = '';
+    const titleSels = ['#detail-title', '.title', '[class*="title"]'];
+    for (const sel of titleSels) {
+      const el = container.querySelector(sel);
+      if (el?.textContent?.trim()) { title = el.textContent.trim(); break; }
+    }
+    const bodySels = [
+      '#detail-desc .note-text', '.note-text', '[class*="note-text"]',
+      '.content', '.desc', '[class*="desc"]'
+    ];
+    for (const sel of bodySels) {
+      const el = container.querySelector(sel);
+      if (el?.textContent?.trim()) { body = el.textContent.trim(); break; }
+    }
+    if (!title) {
+      const meta = document.querySelector('meta[property="og:title"]');
+      if (meta) title = meta.content;
+    }
+    return { title, body };
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  // ---- Competitive: Click into posts and extract full content ----
+  async function extractCompetitivePostContents(topN = 20, minLikes = 1000) {
+    const keyword = getSearchKeyword();
+
+    // Scroll aggressively to load many search results
+    await loadMoreSearchCards(12);
+
+    // Collect cards with engagement
+    const allCards = collectSearchCards();
+
+    // Filter by likes >= minLikes, sort by likes desc
+    let qualified = allCards
+      .filter(c => c.likes >= minLikes)
+      .sort((a, b) => b.likes - a.likes);
+
+    // If not enough high-engagement posts, take top by likes regardless
+    if (qualified.length < 5) {
+      qualified = allCards.sort((a, b) => b.likes - a.likes);
+    }
+    qualified = qualified.slice(0, topN);
+
+    const posts = [];
+    for (let i = 0; i < qualified.length; i++) {
+      const card = qualified[i];
+
+      // Send progress to sidepanel
+      chrome.runtime.sendMessage({
+        type: 'EXTRACT_PROGRESS',
+        current: i + 1,
+        total: qualified.length
+      }).catch(() => {});
+
+      try {
+        // Click into the post
+        const clickTarget = card.element.querySelector('a') || card.element;
+        clickTarget.click();
+
+        // Wait for overlay to appear
+        const overlay = await waitForElement(
+          '.note-detail-mask, [class*="note-detail"], .note-container', 5000
+        );
+
+        if (overlay) {
+          await sleep(1200); // Let content render
+
+          const content = extractPostContentFromOverlay();
+          posts.push({
+            title: content.title || card.title,
+            body: content.body || '',
+            likes: card.likes,
+            author: card.author
+          });
+
+          await closePostOverlay();
+          await sleep(600);
+        } else {
+          // Overlay didn't load — use card-level data
+          posts.push({
+            title: card.title, body: '', likes: card.likes, author: card.author
+          });
+        }
+      } catch {
+        // Skip on error, use card-level data
+        posts.push({
+          title: card.title, body: '', likes: card.likes, author: card.author
+        });
+        try { await closePostOverlay(); } catch {}
+        await sleep(300);
+      }
+    }
+
+    return { keyword, posts };
   }
 
   // ---- Auto-scroll to load more comments ----
@@ -416,12 +528,16 @@
     }
 
     if (message.type === 'EXTRACT_COMPETITIVE') {
-      loadMoreSearchCards(8).then(() => {
-        const data = extractCompetitiveSearchResults(15);
+      extractCompetitivePostContents(20, 1000).then(data => {
         sendResponse({
           pageType: 'search',
           data,
           url: window.location.href
+        });
+      }).catch(err => {
+        sendResponse({
+          pageType: 'unknown',
+          error: '提取竞品内容失败：' + err.message
         });
       });
       return true; // async
