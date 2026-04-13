@@ -11,6 +11,7 @@
   ],
   "host_permissions": [
     "https://www.xiaohongshu.com/*",
+    "https://xiaohongshu.com/*",
     "https://api.anthropic.com/*"
   ],
   "background": {
@@ -18,7 +19,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.xiaohongshu.com/*"],
+      "matches": ["https://www.xiaohongshu.com/*", "https://xiaohongshu.com/*"],
       "js": ["src/content/extractor.js"],
       "css": ["src/content/content.css"],
       "run_at": "document_idle"
