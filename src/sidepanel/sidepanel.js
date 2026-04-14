@@ -172,7 +172,10 @@
 
       if (type === 'competitive') {
         if (!extracted.data.posts || extracted.data.posts.length === 0) {
-          throw new Error('未找到搜索结果。请在小红书搜索结果页使用此功能。');
+          throw new Error('该话题下没有找到 300 赞以上的帖子。\n说明这个话题热度不够，建议换一个更有流量的关键词。');
+        }
+        if (extracted.data.posts.length < 5) {
+          throw new Error(`该话题下只找到 ${extracted.data.posts.length} 篇 300 赞以上的帖子，热度较低。\n建议换一个更热门的关键词，或降低筛选门槛。`);
         }
         const withBody = extracted.data.posts.filter(p => p.body).length;
         loadingText.textContent = `已提取 ${extracted.data.posts.length} 篇热帖（${withBody} 篇含完整正文）`;
@@ -411,7 +414,7 @@
                   ? `<a class="source-title" href="${escapeHtml(s.url)}" target="_blank">${escapeHtml(s.title)}</a>`
                   : `<span class="source-title">${escapeHtml(s.title)}</span>`
                 }
-                <span class="source-meta">${s.likes || 0} 赞${s.author ? ` · ${escapeHtml(s.author)}` : ''}</span>
+                <span class="source-meta">${s.likes || 0} 赞${s.comments ? ` · ${s.comments} 评` : ''}${s.saves ? ` · ${s.saves} 藏` : ''}${s.author ? ` · ${escapeHtml(s.author)}` : ''}</span>
               </div>
             </div>
           `).join('')}

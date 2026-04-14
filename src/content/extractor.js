@@ -218,6 +218,28 @@ window.__REDPROBE_LOADED__ = true;
   // ---- Helpers ----
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+  // Convert relative time text to a freshness score (higher = more recent)
+  // e.g. "刚刚"=100, "3分钟前"=99, "1小时前"=95, "昨天"=80, "3天前"=70, "1周前"=50, "1个月前"=20, "2024-01-01"=5
+  function parseFreshness(text) {
+    if (!text) return 0;
+    if (/刚刚|刚才/.test(text)) return 100;
+    const minMatch = text.match(/(\d+)\s*分钟/);
+    if (minMatch) return Math.max(90, 100 - parseInt(minMatch[1]));
+    const hourMatch = text.match(/(\d+)\s*小时/);
+    if (hourMatch) return Math.max(80, 95 - parseInt(hourMatch[1]) * 2);
+    if (/昨天/.test(text)) return 80;
+    if (/前天/.test(text)) return 75;
+    const dayMatch = text.match(/(\d+)\s*天/);
+    if (dayMatch) return Math.max(50, 80 - parseInt(dayMatch[1]) * 3);
+    const weekMatch = text.match(/(\d+)\s*周/);
+    if (weekMatch) return Math.max(30, 60 - parseInt(weekMatch[1]) * 10);
+    const monthMatch = text.match(/(\d+)\s*个?月/);
+    if (monthMatch) return Math.max(5, 30 - parseInt(monthMatch[1]) * 5);
+    // Absolute date — older
+    if (/\d{4}[-/]\d{1,2}/.test(text)) return 5;
+    return 0;
+  }
+
   // Fetch a post page and extract text + image URLs from __INITIAL_STATE__ / meta / DOM
   async function fetchPostData(url) {
     const res = await fetch(url, { credentials: 'include' });
@@ -308,11 +330,23 @@ window.__REDPROBE_LOADED__ = true;
       if (!title || seen.has(title)) return;
       seen.add(title);
 
+      // Engagement metrics
       const likeEl = el.querySelector('[class*="like"] span, [class*="count"]');
       const likes = parseEngagement(likeEl?.textContent);
 
+      const commentEl = el.querySelector('[class*="comment"] span, [class*="chat"] span');
+      const comments = parseEngagement(commentEl?.textContent);
+
+      const saveEl = el.querySelector('[class*="collect"] span, [class*="save"] span');
+      const saves = parseEngagement(saveEl?.textContent);
+
       const authorEl = el.querySelector('[class*="author"] span, [class*="nickname"]');
       const author = authorEl?.textContent?.trim() || '';
+
+      // Freshness — look for time/date text on the card
+      let timeText = '';
+      const timeEl = el.querySelector('[class*="time"], [class*="date"], time');
+      if (timeEl) timeText = timeEl.textContent?.trim() || '';
 
       // Post URL — card itself may be the <a>, or it may contain one
       let postUrl = '';
@@ -325,26 +359,26 @@ window.__REDPROBE_LOADED__ = true;
         if (linkEl && isMatch(linkEl.href)) postUrl = linkEl.href;
       }
 
-      // Cover image URL
-      const imgEl = el.querySelector('img');
-      const coverUrl = imgEl?.src || '';
-
-      cards.push({ title, likes, author, postUrl, coverUrl });
+      cards.push({ title, likes, comments, saves, author, postUrl, timeText });
     });
 
-    // Filter by minLikes, sort by likes desc
-    // If not enough posts meet the threshold, take the top posts by likes
-    // (engagement parsing may fail for some cards, returning 0)
-    let qualified = cards
+    // Strict filter: 300+ likes only. If few/none qualify, that means
+    // this topic doesn't have enough traction — return as-is so the
+    // sidepanel can tell the user.
+    const qualified = cards
       .filter(c => c.likes >= minLikes)
-      .sort((a, b) => b.likes - a.likes);
-
-    if (qualified.length < 5) {
-      console.warn(`[红探] Only ${qualified.length} posts with ${minLikes}+ likes, using top ${topN} by engagement`);
-      qualified = cards.sort((a, b) => b.likes - a.likes).slice(0, topN);
-    } else {
-      qualified = qualified.slice(0, topN);
-    }
+      .sort((a, b) => {
+        // Ranking priority: freshness > comments > likes > saves
+        // Freshness: use position in DOM as proxy (search results are
+        // already roughly time-sorted), plus parse relative time text
+        const freshA = parseFreshness(a.timeText);
+        const freshB = parseFreshness(b.timeText);
+        if (freshA !== freshB) return freshB - freshA; // higher = more recent
+        if (a.comments !== b.comments) return b.comments - a.comments;
+        if (a.likes !== b.likes) return b.likes - a.likes;
+        return b.saves - a.saves;
+      })
+      .slice(0, topN);
 
     // Fetch full content for each post via HTTP (no navigation = no bfcache)
     const posts = [];
@@ -371,6 +405,8 @@ window.__REDPROBE_LOADED__ = true;
         title: card.title,
         body,
         likes: card.likes,
+        comments: card.comments,
+        saves: card.saves,
         author: card.author,
         url: card.postUrl,
       });

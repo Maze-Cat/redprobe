@@ -332,7 +332,8 @@ async function handleAnalyzeCompetitive(data) {
     // Override sources_count and attach source posts for reference list
     result.sources_count = data.posts.length;
     result.sources = data.posts.map(p => ({
-      title: p.title, likes: p.likes, author: p.author, url: p.url
+      title: p.title, likes: p.likes, comments: p.comments, saves: p.saves,
+      author: p.author, url: p.url
     }));
     return { success: true, data: result, type: 'competitive' };
   } catch (err) {
