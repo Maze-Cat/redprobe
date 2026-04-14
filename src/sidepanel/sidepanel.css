@@ -519,6 +519,73 @@ body {
   line-height: 1.7;
 }
 
+/* Sources List */
+.sources-section {
+  margin-top: 8px;
+}
+
+.sources-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.source-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.source-rank {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--red-light);
+  color: var(--red-primary);
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.source-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.source-title {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  text-decoration: none;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+a.source-title:hover {
+  color: var(--red-primary);
+  text-decoration: underline;
+}
+
+.source-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.sources-toggle {
+  font-size: 11px;
+}
+
 .copy-btn-inline {
   background: none;
   border: 1px solid var(--border);

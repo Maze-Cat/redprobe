@@ -372,6 +372,7 @@ window.__REDPROBE_LOADED__ = true;
         body,
         likes: card.likes,
         author: card.author,
+        url: card.postUrl,
       });
     }
 

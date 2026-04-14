@@ -394,7 +394,41 @@
       </div>
     `;
 
-    battlePlansSection.innerHTML = '';
+    // Source posts list
+    const sources = data.sources || [];
+    battlePlansSection.innerHTML = sources.length > 0 ? `
+      <div class="sources-section fade-in">
+        <div class="gen-section-header" style="margin-top:16px;">
+          <span class="gen-label">📚 引用来源（${sources.length} 篇）</span>
+          <button class="btn-sm sources-toggle">展开</button>
+        </div>
+        <div class="sources-list" style="display:none;">
+          ${sources.map((s, i) => `
+            <div class="source-item">
+              <span class="source-rank">${i + 1}</span>
+              <div class="source-info">
+                ${s.url
+                  ? `<a class="source-title" href="${escapeHtml(s.url)}" target="_blank">${escapeHtml(s.title)}</a>`
+                  : `<span class="source-title">${escapeHtml(s.title)}</span>`
+                }
+                <span class="source-meta">${s.likes || 0} 赞${s.author ? ` · ${escapeHtml(s.author)}` : ''}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : '';
+
+    // Toggle sources list
+    const toggleBtn = battlePlansSection.querySelector('.sources-toggle');
+    const sourcesList = battlePlansSection.querySelector('.sources-list');
+    if (toggleBtn && sourcesList) {
+      toggleBtn.addEventListener('click', () => {
+        const hidden = sourcesList.style.display === 'none';
+        sourcesList.style.display = hidden ? '' : 'none';
+        toggleBtn.textContent = hidden ? '收起' : '展开';
+      });
+    }
 
     // Bind copy buttons
     analysisSection.querySelectorAll('.copy-btn-inline').forEach(btn => {
@@ -489,7 +523,15 @@
       md += `## 封面建议\n${post.cover_suggestion}\n\n`;
     }
     if (data.analysis) {
-      md += `## 创作思路\n${data.analysis}\n`;
+      md += `## 创作思路\n${data.analysis}\n\n`;
+    }
+
+    if (data.sources && data.sources.length) {
+      md += `## 引用来源\n`;
+      data.sources.forEach((s, i) => {
+        const link = s.url ? `[${s.title}](${s.url})` : s.title;
+        md += `${i + 1}. ${link}（${s.likes || 0} 赞${s.author ? `，${s.author}` : ''}）\n`;
+      });
     }
 
     return md;
