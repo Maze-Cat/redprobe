@@ -271,19 +271,7 @@ window.__REDPROBE_LOADED__ = true;
     return { body, imageUrls };
   }
 
-  // Fetch an image and return base64 data (with size-reduced URL)
-  async function fetchImageAsBase64(url) {
-    // Request smaller image from XHS CDN
-    const smallUrl = url.includes('?') ? url : url + '?imageView2/2/w/400/format/jpg';
-    const res = await fetch(smallUrl, { credentials: 'include' });
-    const blob = await res.blob();
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result.split(',')[1]);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  }
+
 
   // ---- Competitive: fetch full content from top posts ----
   async function extractCompetitivePostContents(topN = 20, minLikes = 300) {
@@ -365,22 +353,11 @@ window.__REDPROBE_LOADED__ = true;
         } catch { /* use card-level data */ }
       }
 
-      // Fetch cover image as base64 (limit to top 8 posts to keep payload small)
-      let coverBase64 = '';
-      const coverSrc = card.coverUrl || imageUrls[0] || '';
-      if (coverSrc && i < 8) {
-        try {
-          coverBase64 = await fetchImageAsBase64(coverSrc);
-        } catch { /* skip image */ }
-      }
-
       posts.push({
         title: card.title,
         body,
         likes: card.likes,
         author: card.author,
-        imageCount: imageUrls.length,
-        coverBase64,
       });
     }
 

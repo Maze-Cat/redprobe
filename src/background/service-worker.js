@@ -184,7 +184,6 @@ function parseAIResponse(text) {
   }
 }
 
-// userContent can be a string or an array of content blocks (for multimodal)
 async function callClaudeAPIStreaming(systemPrompt, userContent) {
   const apiKey = await getApiKey();
   if (!apiKey) {
@@ -278,26 +277,22 @@ async function handleAnalyzeSearch(data) {
 
 const COMPETITIVE_SYSTEM_PROMPT = `你是一个顶级小红书博主和内容创作者。
 
-我会给你一组某个关键词下300赞以上的热帖，包括：
-- 每篇帖子的标题和完整正文
-- 部分帖子的封面图片（用于分析视觉设计模式）
-
-有些帖子是"图片帖"——正文很短甚至为空，核心内容在图片上。如果你看到封面图包含大量文字信息或教程内容，请把图片中的关键信息也纳入分析。
+我会给你一组某个关键词下300赞以上的热帖（标题和完整正文）。
 
 你的任务：
-1. 深度分析这些热帖为什么受欢迎（文字内容 + 视觉设计）
-2. 提取所有帖子中有价值的干货和知识点（包括图片中的信息）
+1. 深度分析这些热帖为什么受欢迎（内容角度、结构、表达方式）
+2. 提取所有帖子中有价值的干货和知识点
 3. 融合所有精华，创作一篇全新的、比它们都更优秀的完整小红书帖子
 
 创作要求：
 - 标题：简洁有力，比所有热帖更吸引人点击
-- 正文：融合所有帖子的精华要点（含图片帖中的知识），用全新的结构和表达重新组织
+- 正文：融合所有帖子的精华要点，用全新的结构和表达重新组织
 - 使用 emoji 分段、适当使用符号排版，符合小红书排版习惯
 - 语气亲切自然，像真实用户在分享经验
 - 内容要有深度和信息量，不能是简单拼凑
 - 正文控制在 500-1000 字
 - 建议 3-5 个话题标签
-- 封面建议要基于你看到的热帖封面设计模式
+- 给出封面设计建议
 
 严格按以下JSON格式输出，不要输出任何其他内容：
 {
@@ -305,58 +300,24 @@ const COMPETITIVE_SYSTEM_PROMPT = `你是一个顶级小红书博主和内容创
     "title": "帖子标题",
     "body": "完整正文（包含emoji排版、换行符用\\n表示）",
     "tags": ["话题标签1", "话题标签2", "话题标签3"],
-    "cover_suggestion": "封面设计建议（基于热帖封面分析，描述用什么图片、配色、文字排版）"
+    "cover_suggestion": "封面设计建议（描述应该用什么样的图片和排版）"
   },
-  "analysis": "一段话总结你从这些热帖（文字+图片）中发现的成功模式，以及你的创作思路",
+  "analysis": "一段话总结你从这些热帖中发现的成功模式，以及你的创作思路",
   "sources_count": 20
 }`;
 
 async function handleAnalyzeCompetitive(data) {
   try {
-    // Build multimodal content blocks: text descriptions + cover images
-    const contentBlocks = [];
-
-    // Text block with all post content
     const postsText = data.posts.map((p, i) => {
       let text = `【热帖${i + 1}】（${p.likes || 0} 赞）`;
       if (p.author) text += ` 作者：${p.author}`;
       text += `\n标题：${p.title}`;
-      if (p.body) {
-        text += `\n正文：${p.body}`;
-      } else {
-        text += `\n（图片帖，正文为空，内容在图片中）`;
-      }
-      if (p.imageCount) text += `\n含 ${p.imageCount} 张图片`;
+      if (p.body) text += `\n正文：${p.body}`;
       return text;
     }).join('\n\n---\n\n');
 
-    contentBlocks.push({
-      type: 'text',
-      text: `搜索关键词：${data.keyword || '未知'}\n\n以下是该关键词下的 ${data.posts.length} 篇300赞热帖：\n\n${postsText}`
-    });
-
-    // Add cover images for visual analysis
-    const postsWithImages = data.posts.filter(p => p.coverBase64);
-    if (postsWithImages.length > 0) {
-      contentBlocks.push({
-        type: 'text',
-        text: '\n\n以下是部分热帖的封面图片，请分析封面设计模式（配色、排版、文字内容）：'
-      });
-
-      postsWithImages.forEach(p => {
-        const idx = data.posts.indexOf(p) + 1;
-        contentBlocks.push({
-          type: 'image',
-          source: { type: 'base64', media_type: 'image/jpeg', data: p.coverBase64 }
-        });
-        contentBlocks.push({
-          type: 'text',
-          text: `↑ 热帖${idx}「${p.title}」的封面（${p.likes} 赞）`
-        });
-      });
-    }
-
-    const result = await callClaudeAPIStreaming(COMPETITIVE_SYSTEM_PROMPT, contentBlocks);
+    const userContent = `搜索关键词：${data.keyword || '未知'}\n\n以下是该关键词下的 ${data.posts.length} 篇300赞热帖：\n\n${postsText}`;
+    const result = await callClaudeAPIStreaming(COMPETITIVE_SYSTEM_PROMPT, userContent);
     return { success: true, data: result, type: 'competitive' };
   } catch (err) {
     return { success: false, error: err.message };

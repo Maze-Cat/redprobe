@@ -119,8 +119,7 @@
     // Listen for extraction progress (competitive mode fetches each post)
     const progressListener = (message) => {
       if (message.type === 'EXTRACT_PROGRESS') {
-        loadingText.textContent = `正在抓取第 ${message.current}/${message.total} 篇帖子...`;
-        loadingSub.textContent = '获取完整正文和封面图片';
+        loadingText.textContent = `正在抓取第 ${message.current}/${message.total} 篇帖子正文...`;
       }
     };
     if (type === 'competitive') {
@@ -176,9 +175,8 @@
           throw new Error('未找到搜索结果。请在小红书搜索结果页使用此功能。');
         }
         const withBody = extracted.data.posts.filter(p => p.body).length;
-        const withImage = extracted.data.posts.filter(p => p.coverBase64).length;
-        loadingText.textContent = `已提取 ${extracted.data.posts.length} 篇热帖（${withBody} 篇正文 + ${withImage} 张封面）`;
-        loadingSub.textContent = 'AI 正在分析文字+图片，融合创作中...';
+        loadingText.textContent = `已提取 ${extracted.data.posts.length} 篇热帖（${withBody} 篇含完整正文）`;
+        loadingSub.textContent = 'AI 正在融合精华，创作帖子...';
       }
 
       // Step 2: Send to AI for analysis (with streaming progress)
