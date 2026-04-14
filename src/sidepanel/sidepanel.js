@@ -111,16 +111,16 @@
     showSection(loadingSection);
     loadingText.textContent = '正在提取页面内容...';
     loadingSub.textContent = type === 'competitive'
-      ? '正在搜索300赞热帖，逐篇提取内容...'
+      ? '自动滚动加载热帖中，请稍候...'
       : type === 'search'
         ? '自动滚动加载更多结果，请稍候'
         : '自动加载评论中，请稍候';
 
-    // Listen for extraction progress (competitive mode clicks into each post)
+    // Listen for extraction progress (competitive mode fetches each post)
     const progressListener = (message) => {
       if (message.type === 'EXTRACT_PROGRESS') {
-        loadingText.textContent = `正在提取第 ${message.current}/${message.total} 篇帖子内容...`;
-        loadingSub.textContent = '点击帖子 → 抓取正文 → 下一篇';
+        loadingText.textContent = `正在抓取第 ${message.current}/${message.total} 篇帖子...`;
+        loadingSub.textContent = '获取完整正文和封面图片';
       }
     };
     if (type === 'competitive') {
@@ -176,8 +176,9 @@
           throw new Error('未找到搜索结果。请在小红书搜索结果页使用此功能。');
         }
         const withBody = extracted.data.posts.filter(p => p.body).length;
-        loadingText.textContent = `已提取 ${extracted.data.posts.length} 篇热帖（${withBody} 篇含完整正文）`;
-        loadingSub.textContent = 'AI 正在融合精华，创作帖子...';
+        const withImage = extracted.data.posts.filter(p => p.coverBase64).length;
+        loadingText.textContent = `已提取 ${extracted.data.posts.length} 篇热帖（${withBody} 篇正文 + ${withImage} 张封面）`;
+        loadingSub.textContent = 'AI 正在分析文字+图片，融合创作中...';
       }
 
       // Step 2: Send to AI for analysis (with streaming progress)

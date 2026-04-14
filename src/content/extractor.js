@@ -215,18 +215,90 @@ window.__REDPROBE_LOADED__ = true;
     return isNaN(num) ? 0 : num;
   }
 
-  // ---- Helpers for Competitive Extraction ----
-  function getSearchKeyword() {
+  // ---- Helpers ----
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  // Fetch a post page and extract text + image URLs from __INITIAL_STATE__ / meta / DOM
+  async function fetchPostData(url) {
+    const res = await fetch(url, { credentials: 'include' });
+    const html = await res.text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+
+    let body = '';
+    let imageUrls = [];
+
+    // Method 1: __INITIAL_STATE__ JSON (most reliable, contains full data)
+    for (const script of doc.querySelectorAll('script')) {
+      const text = script.textContent;
+      if (!text.includes('__INITIAL_STATE__')) continue;
+      try {
+        // XHS embeds state as: window.__INITIAL_STATE__= {...}
+        const match = text.match(/__INITIAL_STATE__\s*=\s*(\{[\s\S]*\})/);
+        if (!match) continue;
+        // State can contain HTML entities, try parsing
+        const state = JSON.parse(match[1]);
+        const noteMap = state?.note?.noteDetailMap || state?.note?.noteData || {};
+        const noteKey = Object.keys(noteMap)[0];
+        const note = noteMap[noteKey]?.note || noteMap[noteKey];
+        if (note) {
+          body = note.desc || note.description || '';
+          const imgs = note.imageList || note.images || [];
+          imageUrls = imgs.map(img => img.urlDefault || img.infoList?.[0]?.url || img.url || '').filter(Boolean);
+        }
+      } catch { /* parsing failed, try next method */ }
+    }
+
+    // Method 2: meta tags
+    if (!body) {
+      const desc = doc.querySelector('meta[name="description"], meta[property="og:description"]');
+      if (desc?.content) body = desc.content;
+    }
+
+    // Method 3: DOM elements (SSR content)
+    if (!body) {
+      for (const sel of ['#detail-desc .note-text', '.note-text', '[class*="note-text"]', '#detail-desc']) {
+        const el = doc.querySelector(sel);
+        if (el?.textContent?.trim()) { body = el.textContent.trim(); break; }
+      }
+    }
+
+    // Image fallback: og:image
+    if (imageUrls.length === 0) {
+      const ogImg = doc.querySelector('meta[property="og:image"]');
+      if (ogImg?.content) imageUrls = [ogImg.content];
+    }
+
+    return { body, imageUrls };
+  }
+
+  // Fetch an image and return base64 data (with size-reduced URL)
+  async function fetchImageAsBase64(url) {
+    // Request smaller image from XHS CDN
+    const smallUrl = url.includes('?') ? url : url + '?imageView2/2/w/400/format/jpg';
+    const res = await fetch(smallUrl, { credentials: 'include' });
+    const blob = await res.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  // ---- Competitive: fetch full content from top posts ----
+  async function extractCompetitivePostContents(topN = 20, minLikes = 300) {
+    // Get search keyword
     const urlParams = new URLSearchParams(window.location.search);
     let keyword = urlParams.get('keyword') || urlParams.get('q') || '';
     if (!keyword) {
       const searchInput = document.querySelector('input[type="search"], input[class*="search"], .search-input input');
       if (searchInput) keyword = searchInput.value;
     }
-    return keyword;
-  }
 
-  function collectSearchCards() {
+    // Scroll aggressively to load many search results
+    await loadMoreSearchCards(15);
+
+    // Collect all cards with URLs
     const cards = [];
     const seen = new Set();
     const selectors = [
@@ -243,7 +315,7 @@ window.__REDPROBE_LOADED__ = true;
     }
 
     cardEls.forEach(el => {
-      const titleEl = el.querySelector('.title, [class*="title"], a[class*="title"], span');
+      const titleEl = el.querySelector('.title, [class*="title"], a[class*="title"]');
       const title = titleEl?.textContent?.trim();
       if (!title || seen.has(title)) return;
       seen.add(title);
@@ -254,142 +326,62 @@ window.__REDPROBE_LOADED__ = true;
       const authorEl = el.querySelector('[class*="author"] span, [class*="nickname"]');
       const author = authorEl?.textContent?.trim() || '';
 
-      cards.push({ element: el, title, likes, author });
+      // Post URL from <a> tag
+      const linkEl = el.querySelector('a[href*="/explore/"], a[href*="/search_result/"], a[href*="/note/"], a[href*="/discovery/item/"]');
+      const postUrl = linkEl ? linkEl.href : '';
+
+      // Cover image URL
+      const imgEl = el.querySelector('img');
+      const coverUrl = imgEl?.src || '';
+
+      cards.push({ title, likes, author, postUrl, coverUrl });
     });
-    return cards;
-  }
 
-  function waitForElement(selector, timeout = 5000) {
-    return new Promise(resolve => {
-      const el = document.querySelector(selector);
-      if (el) { resolve(el); return; }
-      const observer = new MutationObserver(() => {
-        const found = document.querySelector(selector);
-        if (found) { observer.disconnect(); resolve(found); }
-      });
-      observer.observe(document.body, { childList: true, subtree: true });
-      setTimeout(() => { observer.disconnect(); resolve(null); }, timeout);
-    });
-  }
-
-  async function closePostOverlay() {
-    // Method 1: Close button
-    const closeBtns = document.querySelectorAll(
-      '.close-circle, [class*="close-circle"], [class*="closeBtn"]'
-    );
-    for (const btn of closeBtns) {
-      if (btn.offsetParent !== null) { btn.click(); await sleep(500); return; }
-    }
-    // Method 2: Escape
-    document.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true
-    }));
-    await sleep(500);
-    // Method 3: History back if overlay still present
-    if (document.querySelector('.note-detail-mask, [class*="note-detail"]')) {
-      window.history.back();
-      await sleep(500);
-    }
-  }
-
-  function extractPostContentFromOverlay() {
-    // Scope to the overlay container if possible
-    const container = document.querySelector(
-      '.note-detail-mask, [class*="note-detail"], .note-container'
-    ) || document;
-
-    let title = '', body = '';
-    const titleSels = ['#detail-title', '.title', '[class*="title"]'];
-    for (const sel of titleSels) {
-      const el = container.querySelector(sel);
-      if (el?.textContent?.trim()) { title = el.textContent.trim(); break; }
-    }
-    const bodySels = [
-      '#detail-desc .note-text', '.note-text', '[class*="note-text"]',
-      '.content', '.desc', '[class*="desc"]'
-    ];
-    for (const sel of bodySels) {
-      const el = container.querySelector(sel);
-      if (el?.textContent?.trim()) { body = el.textContent.trim(); break; }
-    }
-    if (!title) {
-      const meta = document.querySelector('meta[property="og:title"]');
-      if (meta) title = meta.content;
-    }
-    return { title, body };
-  }
-
-  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-  // ---- Competitive: Click into posts and extract full content ----
-  async function extractCompetitivePostContents(topN = 20, minLikes = 1000) {
-    const keyword = getSearchKeyword();
-
-    // Scroll aggressively to load many search results
-    await loadMoreSearchCards(12);
-
-    // Collect cards with engagement
-    const allCards = collectSearchCards();
-
-    // Filter by likes >= minLikes, sort by likes desc
-    let qualified = allCards
-      .filter(c => c.likes >= minLikes)
-      .sort((a, b) => b.likes - a.likes);
-
-    // If not enough high-engagement posts, take top by likes regardless
+    // Filter and sort
+    let qualified = cards.filter(c => c.likes >= minLikes).sort((a, b) => b.likes - a.likes);
     if (qualified.length < 5) {
-      qualified = allCards.sort((a, b) => b.likes - a.likes);
+      qualified = cards.sort((a, b) => b.likes - a.likes);
     }
     qualified = qualified.slice(0, topN);
 
+    // Fetch full content for each post via HTTP (no navigation = no bfcache)
     const posts = [];
     for (let i = 0; i < qualified.length; i++) {
       const card = qualified[i];
 
-      // Send progress to sidepanel
+      // Send progress
       chrome.runtime.sendMessage({
-        type: 'EXTRACT_PROGRESS',
-        current: i + 1,
-        total: qualified.length
+        type: 'EXTRACT_PROGRESS', current: i + 1, total: qualified.length
       }).catch(() => {});
 
-      try {
-        // Click into the post
-        const clickTarget = card.element.querySelector('a') || card.element;
-        clickTarget.click();
-
-        // Wait for overlay to appear
-        const overlay = await waitForElement(
-          '.note-detail-mask, [class*="note-detail"], .note-container', 5000
-        );
-
-        if (overlay) {
-          await sleep(1200); // Let content render
-
-          const content = extractPostContentFromOverlay();
-          posts.push({
-            title: content.title || card.title,
-            body: content.body || '',
-            likes: card.likes,
-            author: card.author
-          });
-
-          await closePostOverlay();
-          await sleep(600);
-        } else {
-          // Overlay didn't load — use card-level data
-          posts.push({
-            title: card.title, body: '', likes: card.likes, author: card.author
-          });
-        }
-      } catch {
-        // Skip on error, use card-level data
-        posts.push({
-          title: card.title, body: '', likes: card.likes, author: card.author
-        });
-        try { await closePostOverlay(); } catch {}
-        await sleep(300);
+      let body = '';
+      let imageUrls = [];
+      if (card.postUrl) {
+        try {
+          const data = await fetchPostData(card.postUrl);
+          body = data.body;
+          imageUrls = data.imageUrls;
+          await sleep(300); // polite delay between fetches
+        } catch { /* use card-level data */ }
       }
+
+      // Fetch cover image as base64 (limit to top 8 posts to keep payload small)
+      let coverBase64 = '';
+      const coverSrc = card.coverUrl || imageUrls[0] || '';
+      if (coverSrc && i < 8) {
+        try {
+          coverBase64 = await fetchImageAsBase64(coverSrc);
+        } catch { /* skip image */ }
+      }
+
+      posts.push({
+        title: card.title,
+        body,
+        likes: card.likes,
+        author: card.author,
+        imageCount: imageUrls.length,
+        coverBase64,
+      });
     }
 
     return { keyword, posts };
