@@ -89,6 +89,12 @@ describe('parseAIResponse', () => {
     expect(result.pain_points).toEqual([]);
   });
 
+  test('parses JSON with surrounding text (preamble/postamble)', () => {
+    const input = 'Here is the result:\n{"pain_points": [], "summary": {}}\nHope this helps!';
+    const result = parseAIResponse(input);
+    expect(result.pain_points).toEqual([]);
+  });
+
   test('throws on completely invalid input', () => {
     expect(() => parseAIResponse('this is not json at all'))
       .toThrow('AI返回格式错误，请重试');

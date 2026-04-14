@@ -7,13 +7,23 @@
  * Handles both raw JSON and JSON wrapped in markdown code blocks.
  */
 function parseAIResponse(text) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    const match = text.match(/```json\s*([\s\S]*?)\s*```/);
-    if (match) return JSON.parse(match[1]);
-    throw new Error('AI返回格式错误，请重试');
+  // Method 1: Direct parse
+  try { return JSON.parse(text); } catch {}
+
+  // Method 2: Extract from ```json ... ``` or ``` ... ``` code block
+  const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (codeBlock) {
+    try { return JSON.parse(codeBlock[1]); } catch {}
   }
+
+  // Method 3: Find the outermost { ... } in the response
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    try { return JSON.parse(text.slice(firstBrace, lastBrace + 1)); } catch {}
+  }
+
+  throw new Error('AI返回格式错误，请重试');
 }
 
 /**
