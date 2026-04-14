@@ -314,9 +314,16 @@ window.__REDPROBE_LOADED__ = true;
       const authorEl = el.querySelector('[class*="author"] span, [class*="nickname"]');
       const author = authorEl?.textContent?.trim() || '';
 
-      // Post URL from <a> tag
-      const linkEl = el.querySelector('a[href*="/explore/"], a[href*="/search_result/"], a[href*="/note/"], a[href*="/discovery/item/"]');
-      const postUrl = linkEl ? linkEl.href : '';
+      // Post URL — card itself may be the <a>, or it may contain one
+      let postUrl = '';
+      const hrefPatterns = ['/explore/', '/note/', '/discovery/item/'];
+      const isMatch = (href) => href && hrefPatterns.some(p => href.includes(p));
+      if (el.tagName === 'A' && isMatch(el.href)) {
+        postUrl = el.href;
+      } else {
+        const linkEl = el.querySelector('a');
+        if (linkEl && isMatch(linkEl.href)) postUrl = linkEl.href;
+      }
 
       // Cover image URL
       const imgEl = el.querySelector('img');
@@ -325,12 +332,19 @@ window.__REDPROBE_LOADED__ = true;
       cards.push({ title, likes, author, postUrl, coverUrl });
     });
 
-    // Filter and sort
-    let qualified = cards.filter(c => c.likes >= minLikes).sort((a, b) => b.likes - a.likes);
+    // Filter by minLikes, sort by likes desc
+    // If not enough posts meet the threshold, take the top posts by likes
+    // (engagement parsing may fail for some cards, returning 0)
+    let qualified = cards
+      .filter(c => c.likes >= minLikes)
+      .sort((a, b) => b.likes - a.likes);
+
     if (qualified.length < 5) {
-      qualified = cards.sort((a, b) => b.likes - a.likes);
+      console.warn(`[红探] Only ${qualified.length} posts with ${minLikes}+ likes, using top ${topN} by engagement`);
+      qualified = cards.sort((a, b) => b.likes - a.likes).slice(0, topN);
+    } else {
+      qualified = qualified.slice(0, topN);
     }
-    qualified = qualified.slice(0, topN);
 
     // Fetch full content for each post via HTTP (no navigation = no bfcache)
     const posts = [];

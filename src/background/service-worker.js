@@ -318,6 +318,8 @@ async function handleAnalyzeCompetitive(data) {
 
     const userContent = `搜索关键词：${data.keyword || '未知'}\n\n以下是该关键词下的 ${data.posts.length} 篇300赞热帖：\n\n${postsText}`;
     const result = await callClaudeAPIStreaming(COMPETITIVE_SYSTEM_PROMPT, userContent);
+    // Override sources_count with actual number (AI may echo the prompt example)
+    result.sources_count = data.posts.length;
     return { success: true, data: result, type: 'competitive' };
   } catch (err) {
     return { success: false, error: err.message };
