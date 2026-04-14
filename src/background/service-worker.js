@@ -66,9 +66,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!tab) { sendResponse({ pageType: 'unknown', error: '未找到活动标签页' }); return; }
         await ensureContentScript(tab.id);
-        chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT' }, sendResponse);
+        const response = await chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT' });
+        sendResponse(response);
       } catch (err) {
-        sendResponse({ pageType: 'unknown', error: '无法连接到页面，请刷新小红书页面后重试' });
+        sendResponse({ pageType: 'unknown', error: '无法连接到页面，请刷新小红书页面后重试：' + err.message });
       }
     })();
     return true;
@@ -80,9 +81,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!tab) { sendResponse({ pageType: 'unknown', error: '未找到活动标签页' }); return; }
         await ensureContentScript(tab.id);
-        chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_COMPETITIVE' }, sendResponse);
+        const response = await chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_COMPETITIVE' });
+        sendResponse(response);
       } catch (err) {
-        sendResponse({ pageType: 'unknown', error: '无法连接到页面，请刷新小红书页面后重试' });
+        sendResponse({ pageType: 'unknown', error: '无法连接到页面，请刷新小红书页面后重试：' + err.message });
       }
     })();
     return true;

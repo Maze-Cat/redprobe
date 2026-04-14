@@ -2,6 +2,10 @@
 // 红探 RedProbe — Content Script (小红书 DOM 提取)
 // ============================================================
 
+// Guard against double-injection (manifest + scripting.executeScript)
+if (window.__REDPROBE_LOADED__) { /* already running */ } else {
+window.__REDPROBE_LOADED__ = true;
+
 (() => {
   'use strict';
 
@@ -547,3 +551,4 @@
   // Notify that content script is ready
   console.log('🔴 红探 RedProbe content script loaded');
 })();
+} // end double-injection guard
